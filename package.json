@@ -45,7 +45,11 @@
     "sib-api-v3-sdk": "^8.5.0",
     "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.20",
+<<<<<<< HEAD
     "uuid": "^11.1.0"
+=======
+    "uuid": "^11.1.1"
+>>>>>>> 17e5e8042a4f4d924a910777e9dde9c1fefeeb24
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",

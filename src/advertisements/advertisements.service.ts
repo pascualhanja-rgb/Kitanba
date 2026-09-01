@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 
 import { Advertisement } from './entities/advertisement.entity.js';
 import { AdPricingPlan } from './entities/ad-pricing-plan.entity.js';
@@ -136,9 +136,11 @@ export class AdvertisementsService {
       : adPlan.name;
 
     // Calcular data de término
+    // Se o plano não tiver duration_days definido, usa 14 dias por padrão
+    const durationDays = adPlan.duration_days || 14;
     const startDate = new Date(createAdDto.start_date);
     const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + adPlan.duration_days);
+    endDate.setDate(endDate.getDate() + durationDays);
 
     const ad = this.adRepository.create({
       store_id: storeId,
@@ -162,7 +164,14 @@ export class AdvertisementsService {
   }
 
   /**
-   * Listar anúncios ativos (público) - com cache
+   * Listar anúncios ativos (público) - visível a TODOS os utilizadores
+   * 
+   * Regra: O anúncio é visível quando:
+   *   1. status = 'active'
+   *   2. start_date <= agora (já começou)
+   *   3. end_date >= agora (ainda não terminou)
+   * 
+   * Por padrão, um anúncio fica visível por 14 dias após aprovação.
    */
   async findActive() {
     const cacheKey = 'ads:active:all';
@@ -170,10 +179,13 @@ export class AdvertisementsService {
     const cached = await this.redisService.get<any>(cacheKey);
     if (cached) return cached;
 
+    const now = new Date();
+
     const ads = await this.adRepository.find({
       where: {
         status: 'active',
-        start_date: MoreThan(new Date()),
+        start_date: LessThanOrEqual(now),
+        end_date: MoreThanOrEqual(now),
       },
       relations: ['store', 'ad_plan'],
       order: { created_at: 'DESC' },
@@ -185,7 +197,8 @@ export class AdvertisementsService {
   }
 
   /**
-   * Listar anúncios de uma loja
+   * Listar anúncios de uma loja (vendedor)
+   * Mostra todos os anúncios da loja (pendentes, ativos, rejeitados)
    */
   async findByStore(storeId: string) {
     return this.adRepository.find({
@@ -208,23 +221,60 @@ export class AdvertisementsService {
   }
 
   /**
+   * Verificar se um anúncio está dentro do período de 14 dias
+   */
+  private isWithinVisibilityPeriod(ad: Advertisement): boolean {
+    const now = new Date();
+    return ad.start_date <= now && ad.end_date >= now;
+  }
+
+  /**
    * Aprovar anúncio (Admin)
+   * 
+   * Quando aprovado:
+   *   - Se start_date é no passado, mantém (já começou)
+   *   - Se start_date é no futuro, usa agora (começa imediatamente)
+   *   - end_date é recalculado para start_date + duration_days
+   *   - O anúncio fica visível por 14 dias (ou duração do plano)
    */
   async approve(id: string) {
-    const ad = await this.adRepository.findOne({ where: { id } });
+    const ad = await this.adRepository.findOne({
+      where: { id },
+      relations: ['ad_plan'],
+    });
 
     if (!ad) {
       throw new NotFoundException('Anúncio não encontrado');
     }
+
+    const now = new Date();
+    const durationDays = ad.ad_plan?.duration_days || 14;
+
+    // Se start_date é no futuro, começa agora
+    if (ad.start_date > now) {
+      ad.start_date = now;
+    }
+
+    // Recalcular end_date baseado no start_date
+    const endDate = new Date(ad.start_date);
+    endDate.setDate(endDate.getDate() + durationDays);
+    ad.end_date = endDate;
 
     ad.status = 'active';
     await this.adRepository.save(ad);
 
     await this.redisService.del('ads:active:all');
 
-    this.logger.log(`Anúncio ${id} aprovado`);
+    this.logger.log(`Anúncio ${id} aprovado. Visível de ${ad.start_date} até ${ad.end_date}`);
 
-    return { message: 'Anúncio aprovado' };
+    return {
+      message: 'Anúncio aprovado',
+      id: ad.id,
+      status: ad.status,
+      start_date: ad.start_date,
+      end_date: ad.end_date,
+      visible_days: durationDays,
+    };
   }
 
   /**

@@ -14,6 +14,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module.js';
 import { EmailModule } from './email/email.module.js';
 import { PlansModule } from './plans/plans.module.js';
 import { OtpsModule } from './otps/otps.module.js';
+import { MetricsModule } from './metrics/metrics.module.js';
 import { ChatModule } from './chat/chat.module.js';
 import { RedisModule } from './common/redis/redis.module.js';
 import { UploadModule } from './common/upload/upload.module.js';
@@ -97,6 +98,7 @@ import { Message } from './chat/entities/message.entity.js';
     SubscriptionsModule,
     EmailModule,
     PlansModule,
+    MetricsModule,
     OtpsModule,
     ChatModule,
     UploadModule,

@@ -7,6 +7,7 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  Headers,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -74,21 +75,16 @@ export class AuthController {
   }
 
   @Post('change-password')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Alterar senha do utilizador autenticado' })
-  @ApiResponse({ status: 200, description: 'Senha alterada' })
-  @ApiResponse({ status: 400, description: 'Senha atual incorreta' })
+  @ApiOperation({ summary: 'Alterar senha (autenticado ou via reset por OTP/Email)' })
+  @ApiResponse({ status: 200, description: 'Senha alterada com sucesso' })
+  @ApiResponse({ status: 400, description: 'Dados incorretos ou token inválido' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
   async changePassword(
-    @CurrentUser() user: User,
     @Body() dto: ChangePasswordDto,
+    @Headers('authorization') authHeader?: string,
   ) {
-    return this.authService.changePassword(
-      user.id,
-      dto.current_password,
-      dto.new_password,
-    );
+    return this.authService.processChangePassword(dto, authHeader);
   }
 
   @Get('profile')

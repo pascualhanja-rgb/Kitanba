@@ -2,11 +2,9 @@ import {
   Controller,
   Post,
   Body,
-  Param,
   UseGuards,
   HttpCode,
   HttpStatus,
-  ParseUUIDPipe,
   BadRequestException,
 } from '@nestjs/common';
 import {
@@ -17,7 +15,6 @@ import {
 } from '@nestjs/swagger';
 
 import { OtpsService } from './otps.service.js';
-import { SendOtpDto } from './dto/send-otp.dto.js';
 import { VerifyOtpDto } from './dto/verify-otp.dto.js';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto.js';
 import { VerifyPasswordResetDto } from './dto/verify-password-reset.dto.js';
@@ -39,10 +36,10 @@ export class OtpsController {
   })
   @ApiResponse({ status: 200, description: 'OTP enviado' })
   async sendActivationOtp(@CurrentUser() user: User) {
-    // Usar o userId do JWT, não da URL - previne que um utilizador envie OTP para outro
     return this.otpsService.sendAccountActivationOtp(user.id);
   }
 
+  // OPTION A: Manter autenticado se o Flutter mandar o token Bearer
   @Post('verify-activation')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -55,10 +52,26 @@ export class OtpsController {
     @CurrentUser() user: User,
     @Body() verifyOtpDto: VerifyOtpDto,
   ) {
-    // Usar o userId do JWT, não da URL
     return this.otpsService.verifyAccountActivationOtp(
       user.id,
       verifyOtpDto.otp_code,
+    );
+  }
+
+  // OPTION B: Endpoint Público por Email (Para quando o usuário não tem Token JWT)
+  @Post('verify-activation-public')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Verificar OTP de ativação publicamente via e-mail e código',
+  })
+  @ApiResponse({ status: 200, description: 'Conta ativada com sucesso' })
+  async verifyActivationOtpPublic(@Body() dto: VerifyPasswordResetDto) {
+    if (!/^\d{6}$/.test(dto.otp_code)) {
+      throw new BadRequestException('O código OTP deve ter 6 dígitos');
+    }
+    return this.otpsService.verifyAccountActivationOtpByEmail(
+      dto.email,
+      dto.otp_code,
     );
   }
 
@@ -75,7 +88,6 @@ export class OtpsController {
   @ApiOperation({ summary: 'Verificar OTP de reset de senha' })
   @ApiResponse({ status: 200, description: 'Código verificado' })
   async verifyPasswordReset(@Body() dto: VerifyPasswordResetDto) {
-    // Validação básica do OTP
     if (!/^\d{6}$/.test(dto.otp_code)) {
       throw new BadRequestException('Código OTP deve ter exatamente 6 dígitos');
     }

@@ -17,7 +17,7 @@ CREATE TABLE users (
     is_email_verified BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-
+//Este banco de dados 
 CREATE TABLE user_otps (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -25,7 +25,7 @@ CREATE TABLE user_otps (
     purpose VARCHAR(30) NOT NULL CHECK (purpose IN ('account_activation', 'critical_login', 'password_reset')),
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     is_used BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  
 );
 
 CREATE TABLE customer_password_resets (

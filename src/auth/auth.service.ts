@@ -15,6 +15,7 @@ import * as bcrypt from 'bcrypt';
 import { User } from '../users/entities/user.entity.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { RedisService } from '../common/redis/redis.service.js';
 
 @Injectable()
@@ -244,7 +245,59 @@ export class AuthService {
   }
 
   /**
-   * Alterar senha do utilizador
+   * Método orquestrador para processar o /auth/change-password.
+   * Suporta alteração por utilizador logado e redefinição por OTP/Email.
+   */
+  async processChangePassword(dto: ChangePasswordDto, authHeader?: string) {
+    const newPassword = dto.new_password;
+
+    // FLUXO 1: Redefinição via OTP / Email (Recuperação de Senha)
+    if (dto.email || dto.reset_token) {
+      let targetEmail = dto.email;
+
+      // Se passou o reset_token, valida no Redis para extrair o e-mail associado
+      if (dto.reset_token) {
+        const emailFromRedis = await this.redisService.get(`reset_token:${dto.reset_token}`);
+        if (!emailFromRedis) {
+          throw new BadRequestException('Token de redefinição inválido ou expirado');
+        }
+        targetEmail = emailFromRedis;
+        // Invalida o token após a utilização
+        await this.redisService.del(`reset_token:${dto.reset_token}`);
+      }
+
+      if (!targetEmail) {
+        throw new BadRequestException('Informe o e-mail ou um reset_token válido.');
+      }
+
+      return this.resetPassword(targetEmail, newPassword);
+    }
+
+    // FLUXO 2: Alteração de Senha para Utilizador Autenticado
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Acesso não autorizado. Envie o Bearer Token de sessão.');
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    let payload: any;
+
+    try {
+      payload = this.jwtService.verify(token, {
+        secret: this.configService.get<string>('JWT_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException('Sessão expirada. Faça login novamente.');
+    }
+
+    if (!dto.current_password) {
+      throw new BadRequestException('A senha atual é obrigatória para utilizadores logados.');
+    }
+
+    return this.changePassword(payload.sub, dto.current_password, newPassword);
+  }
+
+  /**
+   * Alterar senha do utilizador (autenticado)
    */
   async changePassword(
     userId: string,
@@ -289,7 +342,7 @@ export class AuthService {
   }
 
   /**
-   * Definir nova senha (após reset via OTP)
+   * Definir nova senha (após reset via OTP / Email)
    */
   async resetPassword(email: string, newPassword: string) {
     const user = await this.userRepository.findOne({ where: { email } });

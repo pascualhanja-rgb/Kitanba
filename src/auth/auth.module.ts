@@ -7,7 +7,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
-import { LocalStrategy } from './strategies/local.strategy.js';
 import { User } from '../users/entities/user.entity.js';
 import { RedisModule } from '../common/redis/redis.module.js';
 
@@ -29,7 +28,7 @@ import { RedisModule } from '../common/redis/redis.module.js';
     RedisModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, LocalStrategy],
+  providers: [AuthService, JwtStrategy], // LocalStrategy removida daqui
   exports: [AuthService, JwtModule, PassportModule],
 })
 export class AuthModule {}

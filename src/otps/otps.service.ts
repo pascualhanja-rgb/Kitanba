@@ -180,6 +180,19 @@ export class OtpsService {
   }
 
   /**
+   * Verificar OTP de ativação de conta publicamente por email
+   */
+  async verifyAccountActivationOtpByEmail(email: string, otpCode: string) {
+    const user = await this.userRepository.findOne({ where: { email } });
+
+    if (!user) {
+      throw new NotFoundException('Utilizador não encontrado');
+    }
+
+    return this.verifyAccountActivationOtp(user.id, otpCode);
+  }
+
+  /**
    * Solicitar reset de senha (clientes) - com proteção de taxa
    */
   async requestPasswordReset(email: string) {
@@ -195,7 +208,6 @@ export class OtpsService {
       `password-reset:${email}`,
     );
     if (!allowed) {
-      // Mesmo bloqueado, retornar a mesma mensagem genérica
       return { message: 'Se o email estiver registado, receberá um código' };
     }
 

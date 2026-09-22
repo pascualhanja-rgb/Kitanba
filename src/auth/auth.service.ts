@@ -1,8 +1,8 @@
 import {
   Injectable,
   UnauthorizedException,
-  ConflictException,
   BadRequestException,
+  ConflictException,
   NotFoundException,
   Logger,
 } from '@nestjs/common';
@@ -30,13 +30,9 @@ export class AuthService {
     private readonly redisService: RedisService,
   ) {}
 
-  /**
-   * Registra um novo utilizador
-   */
   async register(registerDto: RegisterDto) {
     const { email, password, name, phone, user_type } = registerDto;
 
-    // Verificar se o email já existe
     const existingUser = await this.userRepository.findOne({
       where: { email },
     });
@@ -45,11 +41,9 @@ export class AuthService {
       throw new ConflictException('Email já está em uso');
     }
 
-    // Hash da senha com bcrypt (12 rounds para segurança)
     const salt = await bcrypt.genSalt(12);
     const password_hash = await bcrypt.hash(password, salt);
 
-    // Criar utilizador
     const user = this.userRepository.create({
       name,
       email,
@@ -59,11 +53,7 @@ export class AuthService {
     });
 
     const savedUser = await this.userRepository.save(user);
-
-    // Gerar tokens JWT (access + refresh)
     const tokens = await this.generateTokens(savedUser);
-
-    this.logger.log(`Novo utilizador registrado: ${email}`);
 
     return {
       user: {
@@ -71,95 +61,29 @@ export class AuthService {
         name: savedUser.name,
         email: savedUser.email,
         user_type: savedUser.user_type,
-        is_email_verified: savedUser.is_email_verified,
       },
       ...tokens,
     };
   }
 
-  /**
-   * Login do utilizador com proteção anti-brute force
-   */
   async login(loginDto: LoginDto, ip?: string, userAgent?: string) {
     const { email, password } = loginDto;
 
-    // Verificar se a conta está bloqueada por brute force
-    const maxAttempts = this.configService.get<number>(
-      'MAX_LOGIN_ATTEMPTS',
-      5,
-    );
-    const lockoutMinutes = this.configService.get<number>(
-      'LOGIN_LOCKOUT_MINUTES',
-      15,
-    );
-
-    const isLocked = await this.redisService.isAccountLocked(
-      email,
-      maxAttempts,
-    );
-    if (isLocked) {
-      this.logger.warn(
-        `Tentativa de login em conta bloqueada: ${email} (IP: ${ip})`,
-      );
-      throw new UnauthorizedException(
-        'Conta temporariamente bloqueada devido a múltiplas tentativas. Tente novamente mais tarde.',
-      );
-    }
-
-    // Buscar utilizador com password_hash
     const user = await this.userRepository.findOne({
       where: { email },
-      select: [
-        'id',
-        'name',
-        'email',
-        'password_hash',
-        'user_type',
-        'is_email_verified',
-      ],
+      select: ['id', 'name', 'email', 'password_hash', 'user_type'],
     });
 
     if (!user) {
-      // Mensagem genérica para não revelar se o email existe
-      await this.redisService.recordFailedLogin(
-        email,
-        maxAttempts,
-        lockoutMinutes,
-      );
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    // Verificar senha
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-
     if (!isPasswordValid) {
-      const result = await this.redisService.recordFailedLogin(
-        email,
-        maxAttempts,
-        lockoutMinutes,
-      );
-      this.logger.warn(
-        `Tentativa de login falhada para: ${email} (restam ${result.attemptsLeft} tentativas)`,
-      );
-
-      if (result.locked) {
-        this.logger.error(
-          `🔒 Conta bloqueada por brute force: ${email} (IP: ${ip})`,
-        );
-      }
-
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    // Login bem-sucedido: limpar tentativas falhadas
-    await this.redisService.clearFailedLogins(email);
-
-    // Gerar tokens JWT (access + refresh)
     const tokens = await this.generateTokens(user);
-
-    this.logger.log(
-      `Login bem-sucedido: ${email} (IP: ${ip}, UA: ${userAgent})`,
-    );
 
     return {
       user: {
@@ -167,30 +91,35 @@ export class AuthService {
         name: user.name,
         email: user.email,
         user_type: user.user_type,
-        is_email_verified: user.is_email_verified,
       },
       ...tokens,
     };
   }
 
-  /**
-   * Renovar access token usando refresh token
-   */
+  async validateUser(email: string, pass: string): Promise<any> {
+    const user = await this.userRepository.findOne({
+      where: { email },
+      select: ['id', 'name', 'email', 'password_hash', 'user_type'],
+    });
+
+    if (user && (await bcrypt.compare(pass, user.password_hash))) {
+      const { password_hash, ...result } = user;
+      return result;
+    }
+    return null;
+  }
+
   async refreshToken(refreshToken: string) {
     try {
-      // Verificar se o refresh token não está na blacklist
-      const isBlacklisted =
-        await this.redisService.isTokenBlacklisted(refreshToken);
+      const isBlacklisted = await this.redisService.isTokenBlacklisted(refreshToken);
       if (isBlacklisted) {
         throw new UnauthorizedException('Refresh token revogado');
       }
 
-      // Verificar validade do refresh token
       const payload = this.jwtService.verify(refreshToken, {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
 
-      // Buscar utilizador
       const user = await this.userRepository.findOne({
         where: { id: payload.sub },
       });
@@ -199,17 +128,13 @@ export class AuthService {
         throw new UnauthorizedException('Utilizador não encontrado');
       }
 
-      // Blacklistar o refresh token antigo
       const oldPayload = this.jwtService.decode(refreshToken) as any;
-      const oldExp = oldPayload.exp - Math.floor(Date.now() / 1000);
+      const oldExp = oldPayload?.exp - Math.floor(Date.now() / 1000);
       if (oldExp > 0) {
         await this.redisService.blacklistToken(refreshToken, oldExp);
       }
 
-      // Gerar novos tokens
-      const tokens = await this.generateTokens(user);
-
-      return tokens;
+      return this.generateTokens(user);
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -218,9 +143,6 @@ export class AuthService {
     }
   }
 
-  /**
-   * Logout: revogar tokens
-   */
   async logout(userId: string, refreshToken?: string) {
     if (refreshToken) {
       try {
@@ -232,156 +154,61 @@ export class AuthService {
           }
         }
       } catch {
-        // Token já inválido, ignorar
+        // Ignorar se o token for inválido
       }
     }
 
-    // Invalidar todas as chaves de cache do utilizador
     await this.redisService.delPattern(`user:${userId}:*`);
-
-    this.logger.log(`Utilizador ${userId} fez logout`);
-
     return { message: 'Logout efetuado com sucesso' };
   }
 
-  /**
-   * Método orquestrador para processar o /auth/change-password.
-   * Suporta alteração por utilizador logado e redefinição por OTP/Email.
-   */
   async processChangePassword(dto: ChangePasswordDto, authHeader?: string) {
-    const newPassword = dto.new_password;
+    let targetEmail = dto.email;
 
-    // FLUXO 1: Redefinição via OTP / Email (Recuperação de Senha)
-    if (dto.email || dto.reset_token) {
-      let targetEmail = dto.email;
-
-      // Se passou o reset_token, valida no Redis para extrair o e-mail associado
-      if (dto.reset_token) {
-        const emailFromRedis = await this.redisService.get(`reset_token:${dto.reset_token}`);
-        if (!emailFromRedis) {
-          throw new BadRequestException('Token de redefinição inválido ou expirado');
+    if (dto.reset_token) {
+      const emailFromRedis = await this.redisService.get(`reset_token:${dto.reset_token}`);
+      if (!emailFromRedis) {
+        throw new BadRequestException('Token de redefinição inválido ou expirado');
+      }
+      targetEmail = typeof emailFromRedis === 'string' ? emailFromRedis : String(emailFromRedis);
+      await this.redisService.del(`reset_token:${dto.reset_token}`);
+    } else if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      try {
+        const payload = this.jwtService.verify(token, {
+          secret: this.configService.get<string>('JWT_SECRET'),
+        });
+        const user = await this.userRepository.findOne({ where: { id: payload.sub } });
+        if (user) {
+          targetEmail = user.email;
+          if (dto.current_password) {
+            const isMatch = await bcrypt.compare(dto.current_password, user.password_hash);
+            if (!isMatch) {
+              throw new BadRequestException('A senha atual está incorreta');
+            }
+          }
         }
-        targetEmail = emailFromRedis;
-        // Invalida o token após a utilização
-        await this.redisService.del(`reset_token:${dto.reset_token}`);
+      } catch {
+        throw new UnauthorizedException('Sessão expirada ou inválida');
       }
-
-      if (!targetEmail) {
-        throw new BadRequestException('Informe o e-mail ou um reset_token válido.');
-      }
-
-      return this.resetPassword(targetEmail, newPassword);
     }
 
-    // FLUXO 2: Alteração de Senha para Utilizador Autenticado
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Acesso não autorizado. Envie o Bearer Token de sessão.');
+    if (!targetEmail) {
+      throw new BadRequestException('Não foi possível identificar o utilizador para alteração de senha');
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    let payload: any;
-
-    try {
-      payload = this.jwtService.verify(token, {
-        secret: this.configService.get<string>('JWT_SECRET'),
-      });
-    } catch {
-      throw new UnauthorizedException('Sessão expirada. Faça login novamente.');
-    }
-
-    if (!dto.current_password) {
-      throw new BadRequestException('A senha atual é obrigatória para utilizadores logados.');
-    }
-
-    return this.changePassword(payload.sub, dto.current_password, newPassword);
-  }
-
-  /**
-   * Alterar senha do utilizador (autenticado)
-   */
-  async changePassword(
-    userId: string,
-    currentPassword: string,
-    newPassword: string,
-  ) {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      select: ['id', 'password_hash'],
-    });
-
-    if (!user) {
+    const userToUpdate = await this.userRepository.findOne({ where: { email: targetEmail } });
+    if (!userToUpdate) {
       throw new NotFoundException('Utilizador não encontrado');
     }
 
-    // Verificar senha atual
-    const isCurrentValid = await bcrypt.compare(
-      currentPassword,
-      user.password_hash,
-    );
-    if (!isCurrentValid) {
-      throw new BadRequestException('Senha atual incorreta');
-    }
-
-    // Verificar que a nova senha é diferente
-    const isSame = await bcrypt.compare(newPassword, user.password_hash);
-    if (isSame) {
-      throw new BadRequestException(
-        'A nova senha deve ser diferente da atual',
-      );
-    }
-
-    // Hash da nova senha
     const salt = await bcrypt.genSalt(12);
-    const password_hash = await bcrypt.hash(newPassword, salt);
-
-    await this.userRepository.update(userId, { password_hash });
-
-    this.logger.log(`Senha alterada para utilizador ${userId}`);
+    userToUpdate.password_hash = await bcrypt.hash(dto.new_password, salt);
+    await this.userRepository.save(userToUpdate);
 
     return { message: 'Senha alterada com sucesso' };
   }
 
-  /**
-   * Definir nova senha (após reset via OTP / Email)
-   */
-  async resetPassword(email: string, newPassword: string) {
-    const user = await this.userRepository.findOne({ where: { email } });
-
-    if (!user) {
-      throw new BadRequestException('Email não encontrado');
-    }
-
-    // Hash da nova senha
-    const salt = await bcrypt.genSalt(12);
-    const password_hash = await bcrypt.hash(newPassword, salt);
-
-    await this.userRepository.update(user.id, { password_hash });
-
-    this.logger.log(`Senha redefinida para utilizador ${user.id}`);
-
-    return { message: 'Senha redefinida com sucesso' };
-  }
-
-  /**
-   * Valida utilizador para passport-local
-   */
-  async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.userRepository.findOne({
-      where: { email },
-      select: ['id', 'name', 'email', 'password_hash', 'user_type'],
-    });
-
-    if (user && (await bcrypt.compare(password, user.password_hash))) {
-      const { password_hash, ...result } = user;
-      return result;
-    }
-
-    return null;
-  }
-
-  /**
-   * Gera access token + refresh token JWT
-   */
   private async generateTokens(user: User): Promise<{
     access_token: string;
     refresh_token: string;
@@ -393,32 +220,13 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload);
-
     const refreshToken = this.jwtService.sign(payload, {
-      expiresIn: this.configService.get<string>(
-        'JWT_REFRESH_EXPIRES_IN',
-        '7d',
-      ) as any,
+      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d') as any,
     });
 
     return {
       access_token: accessToken,
       refresh_token: refreshToken,
     };
-  }
-
-  /**
-   * Valida utilizador pelo ID (usado pelo JwtStrategy)
-   */
-  async validateUserById(userId: string): Promise<User> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      throw new UnauthorizedException('Utilizador não encontrado');
-    }
-
-    return user;
   }
 }

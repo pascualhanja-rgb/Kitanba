@@ -3,14 +3,19 @@ import {
   MinLength,
   MaxLength,
   Matches,
+  IsOptional,
+  IsEmail,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ChangePasswordDto {
-  @ApiProperty({ description: 'Senha atual' })
+  @ApiPropertyOptional({
+    description: 'Senha atual (obrigatória para utilizadores autenticados)',
+  })
+  @IsOptional()
   @IsString()
   @MinLength(8)
-  current_password: string;
+  current_password?: string;
 
   @ApiProperty({
     description:
@@ -33,5 +38,19 @@ export class ChangePasswordDto {
     message:
       'A senha deve conter pelo menos um caractere especial (!@#$%^&*...)',
   })
-  new_password: string;
+  new_password!: string;
+
+  @ApiPropertyOptional({
+    description: 'E-mail do utilizador (para redefinição por OTP)',
+  })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({
+    description: 'Token de redefinição após validação do OTP',
+  })
+  @IsOptional()
+  @IsString()
+  reset_token?: string;
 }

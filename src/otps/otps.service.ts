@@ -298,6 +298,9 @@ export class OtpsService {
 
     await this.passwordResetRepository.save(tempReset);
 
+    // Guardar no Redis com a chave exata que o AuthService.processChangePassword procura
+    await this.redisService.set(`reset_token:${tempToken}`, user.email, 600);
+
     return {
       message: 'Código verificado',
       reset_token: tempToken,

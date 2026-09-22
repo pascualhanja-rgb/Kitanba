@@ -23,21 +23,15 @@ export class ChangePasswordDto {
     example: 'NovaSenh@123!',
   })
   @IsString()
-  @MinLength(8)
+  @MinLength(8, { message: 'A senha deve ter pelo menos 8 caracteres.' })
   @MaxLength(128)
-  @Matches(/^(?=.*[a-z])/, {
-    message: 'A senha deve conter pelo menos uma letra minúscula',
-  })
-  @Matches(/^(?=.*[A-Z])/, {
-    message: 'A senha deve conter pelo menos uma letra maiúscula',
-  })
-  @Matches(/^(?=.*\d)/, {
-    message: 'A senha deve conter pelo menos um número',
-  })
-  @Matches(/^(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/, {
-    message:
-      'A senha deve conter pelo menos um caractere especial (!@#$%^&*...)',
-  })
+  @Matches(
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/,
+    {
+      message:
+        'A senha deve conter pelo menos uma letra maiúscula, uma letra minúscula, um número e um caractere especial.',
+    },
+  )
   new_password!: string;
 
   @ApiPropertyOptional({

@@ -16,6 +16,12 @@ import { PlansModule } from './plans/plans.module.js';
 import { OtpsModule } from './otps/otps.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
 import { ChatModule } from './chat/chat.module.js';
+import { OrdersModule } from './orders/orders.module.js';
+import { DeliveriesModule } from './deliveries/deliveries.module.js';
+import { InvoicesModule } from './invoices/invoices.module.js';
+import { PromotionsModule } from './promotions/promotions.module.js';
+import { LivesModule } from './lives/lives.module.js';
+import { AffiliatesModule } from './affiliates/affiliates.module.js';
 import { RedisModule } from './common/redis/redis.module.js';
 import { UploadModule } from './common/upload/upload.module.js';
 
@@ -42,6 +48,20 @@ import { Advertisement } from './advertisements/entities/advertisement.entity.js
 import { AdPayment } from './advertisements/entities/ad-payment.entity.js';
 import { ChatRoom } from './chat/entities/chat-room.entity.js';
 import { Message } from './chat/entities/message.entity.js';
+
+// Novas entidades
+import { Order } from './orders/entities/order.entity.js';
+import { OrderItem } from './orders/entities/order-item.entity.js';
+import { Delivery } from './deliveries/entities/delivery.entity.js';
+import { DeliveryTrackingLog } from './deliveries/entities/delivery-tracking-log.entity.js';
+import { Invoice } from './invoices/entities/invoice.entity.js';
+import { InvoiceItem } from './invoices/entities/invoice-item.entity.js';
+import { StoreBillingProfile } from './invoices/entities/store-billing-profile.entity.js';
+import { PromotionalCampaign } from './promotions/entities/promotional-campaign.entity.js';
+import { CampaignProduct } from './promotions/entities/campaign-product.entity.js';
+import { LiveStream } from './lives/entities/live-stream.entity.js';
+import { LiveComment } from './lives/entities/live-comment.entity.js';
+import { StoreAffiliate } from './affiliates/entities/store-affiliate.entity.js';
 
 @Module({
   imports: [
@@ -73,6 +93,13 @@ import { Message } from './chat/entities/message.entity.js';
           Product, ProductImage, ProductAttributeValue,
           AdPricingPlan, Advertisement, AdPayment,
           ChatRoom, Message,
+          // Novas entidades
+          Order, OrderItem,
+          Delivery, DeliveryTrackingLog,
+          Invoice, InvoiceItem, StoreBillingProfile,
+          PromotionalCampaign, CampaignProduct,
+          LiveStream, LiveComment,
+          StoreAffiliate,
         ],
         synchronize: false,
         logging: configService.get<string>('NODE_ENV') !== 'production',
@@ -102,6 +129,12 @@ import { Message } from './chat/entities/message.entity.js';
     OtpsModule,
     ChatModule,
     UploadModule,
+    OrdersModule,
+    DeliveriesModule,
+    InvoicesModule,
+    PromotionsModule,
+    LivesModule,
+    AffiliatesModule,
   ],
   providers: [
     {

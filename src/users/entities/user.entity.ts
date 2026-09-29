@@ -62,4 +62,22 @@ export class User {
 
   @OneToMany('Message', (message: any) => message.sender)
   sent_messages: any[];
+
+  @OneToMany('Order', (order: any) => order.customer)
+  orders: any[];
+
+  @OneToMany('Delivery', (delivery: any) => delivery.customer)
+  deliveries_as_customer: any[];
+
+  @OneToMany('Delivery', (delivery: any) => delivery.courier)
+  deliveries_as_courier: any[];
+
+  @OneToMany('Invoice', (invoice: any) => invoice.customer)
+  invoices: any[];
+
+  @OneToMany('StoreAffiliate', (affiliate: any) => affiliate.user)
+  store_affiliations: any[];
+
+  @OneToMany('LiveComment', (comment: any) => comment.user)
+  live_comments: any[];
 }

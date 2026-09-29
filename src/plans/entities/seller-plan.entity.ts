@@ -32,6 +32,14 @@ export class SellerPlan {
   @Column({ type: 'boolean', default: false })
   allow_video_ads: boolean;
 
+  // Limite de afiliados/membros da equipe (999999 = ilimitado)
+  @Column({ type: 'int', default: 0 })
+  max_affiliates: number;
+
+  // Se o plano permite transmissões ao vivo
+  @Column({ type: 'boolean', default: false })
+  allow_live_stream: boolean;
+
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 

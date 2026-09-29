@@ -11,6 +11,7 @@ import { Product } from './entities/product.entity.js';
 import { ProductImage } from './entities/product-image.entity.js';
 import { ProductAttributeValue } from './entities/product-attribute-value.entity.js';
 import { Store } from '../stores/entities/store.entity.js';
+import { PromotionsService } from '../promotions/promotions.service.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
 import { UpdateProductDto } from './dto/update-product.dto.js';
 import { RedisService } from '../common/redis/redis.service.js';
@@ -30,6 +31,7 @@ export class ProductsService {
     private readonly attributeValueRepository: Repository<ProductAttributeValue>,
     @InjectRepository(Store)
     private readonly storeRepository: Repository<Store>,
+    private readonly promotionsService: PromotionsService,
     private readonly redisService: RedisService,
   ) {}
 
@@ -156,8 +158,11 @@ export class ProductsService {
 
     const [data, total] = await query.getManyAndCount();
 
+    // Regra de negócio #5: anexar preço promocional de campanha ativa ("Sextou")
+    const dataWithPromos = await this.promotionsService.applyPromotionalPrices(data);
+
     const result = {
-      data,
+      data: dataWithPromos,
       meta: {
         total,
         page,
@@ -308,8 +313,11 @@ export class ProductsService {
       order: { created_at: 'DESC' },
     });
 
+    // Regra de negócio #5: anexar preço promocional de campanha ativa ("Sextou")
+    const dataWithPromos = await this.promotionsService.applyPromotionalPrices(data);
+
     const result = {
-      data,
+      data: dataWithPromos,
       meta: {
         total,
         page,

@@ -61,4 +61,10 @@ export class Product {
 
   @OneToMany('Advertisement', (ad: any) => ad.product)
   advertisements: any[];
+
+  @OneToMany('OrderItem', (item: any) => item.product)
+  order_items: any[];
+
+  @OneToMany('CampaignProduct', (cp: any) => cp.product)
+  campaign_products: any[];
 }

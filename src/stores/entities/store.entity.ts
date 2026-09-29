@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   ManyToOne,
   OneToMany,
+  OneToOne,
   JoinColumn,
 } from 'typeorm';
 
@@ -50,6 +51,16 @@ export class Store {
   @Column({ type: 'uuid', nullable: true })
   approved_by: string;
 
+  // Endereço/coordenadas de pickup (para entregas)
+  @Column({ type: 'text', nullable: true })
+  address: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 8, nullable: true })
+  latitude: number;
+
+  @Column({ type: 'decimal', precision: 11, scale: 8, nullable: true })
+  longitude: number;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 
@@ -73,4 +84,25 @@ export class Store {
 
   @OneToMany('StoreSubscriptionPayment', (payment: any) => payment.store)
   subscription_payments: any[];
+
+  @OneToMany('Order', (order: any) => order.store)
+  orders: any[];
+
+  @OneToMany('Delivery', (delivery: any) => delivery.store)
+  deliveries: any[];
+
+  @OneToMany('StoreAffiliate', (affiliate: any) => affiliate.store)
+  affiliates: any[];
+
+  @OneToMany('PromotionalCampaign', (campaign: any) => campaign.store)
+  promotional_campaigns: any[];
+
+  @OneToMany('LiveStream', (live: any) => live.store)
+  live_streams: any[];
+
+  @OneToMany('Invoice', (invoice: any) => invoice.store)
+  invoices: any[];
+
+  @OneToOne('StoreBillingProfile', (profile: any) => profile.store)
+  billing_profile: any;
 }

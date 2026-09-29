@@ -7,11 +7,13 @@ import { Product } from './entities/product.entity.js';
 import { ProductImage } from './entities/product-image.entity.js';
 import { ProductAttributeValue } from './entities/product-attribute-value.entity.js';
 import { Store } from '../stores/entities/store.entity.js';
+import { PromotionsModule } from '../promotions/promotions.module.js';
 import { RedisModule } from '../common/redis/redis.module.js';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Product, ProductImage, ProductAttributeValue, Store]),
+    PromotionsModule,
     RedisModule,
   ],
   controllers: [ProductsController],

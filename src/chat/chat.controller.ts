@@ -17,6 +17,7 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { ChatService } from './chat.service.js';
 import { CreateRoomDto } from './dto/create-room.dto.js';
@@ -26,6 +27,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { User } from '../users/entities/user.entity.js';
 
 @ApiTags('Chat')
+@SkipThrottle()
 @Controller('chat')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()

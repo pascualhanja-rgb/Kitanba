@@ -207,6 +207,9 @@
 |-----------|----------|
 | Loja Black tenta associar 4º afiliado | `403 Forbidden` — `"Limite de afiliados atingido para o plano atual."` |
 | Loja Normal/Black tenta iniciar live | `403 Forbidden` — `"O seu plano não permite realizar transmissões ao vivo."` |
+| Vendedor tenta usar plano que não lhe pertence (criar loja com outro `plan_id`) | `403 Forbidden` — `"Você não tem permissão para usar este plano. Solicite um upgrade ao administrador."` |
+| Upgrade para plano igual/inferior ou plano inativo | `400` / `403 Forbidden` — `"Você não tem permissão para usar este plano..."` |
+| Admin tenta aprovar mudança para plano não-superior | `403 Forbidden` — `"Você não tem permissão para usar este plano. A mudança só é permitida para um plano superior."` |
 
 ---
 

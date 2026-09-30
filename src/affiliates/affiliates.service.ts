@@ -61,6 +61,11 @@ export class AffiliatesService {
     }
 
     const plan = store.plan as SellerPlan;
+
+    if (!plan || !plan.is_active) {
+      throw new ForbiddenException('Você não tem permissão para usar este plano.');
+    }
+
     const maxAffiliates = plan?.max_affiliates ?? 0;
 
     // 999999 = ilimitado

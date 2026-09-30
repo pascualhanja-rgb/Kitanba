@@ -316,4 +316,17 @@
 | Afiliados/equipe (`max_affiliates`) | 0 | 3 | Ilimitado (999999) |
 | Lives (`allow_live_stream`) | ❌ | ❌ | ✅ |
 
+### Posse de Plano (regra rigorosa)
+
+> Um vendedor **só pode usar o plano que lhe pertence**. Nenhum plano dá acesso aos recursos de outro:
+> Normal não usa recursos Black/Premium; Black não usa recursos Premium.
+
+| Cenário | Resposta |
+|---------|----------|
+| Vendedor com loja Normal tenta usar plano Black/Premium (criar loja com outro `plan_id`) | `403` — "Você não tem permissão para usar este plano. Solicite um upgrade ao administrador." |
+| Vendedor com loja Black tenta usar plano Premium | `403` — "Você não tem permissão para usar este plano..." |
+| Solicitar upgrade para plano igual ou inferior ao atual | `400` (igual) / `403` (inferior) — "Você não tem permissão para usar este plano..." |
+| Plano inexistente/inativo em qualquer operação | `403` — "Você não tem permissão para usar este plano." |
+| Recurso de outro tier (live no Normal/Black, banner/vídeo no Normal) | `403` — mensagem específica do recurso ("O seu plano não permite...") |
+
 > Contratos (Método/Endpoint/payload/resposta) permanecem inalterados — a validação é interna no service.

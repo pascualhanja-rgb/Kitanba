@@ -77,6 +77,11 @@ export class ProductsService {
     }
 
     const plan = store.plan as any;
+
+    if (!plan || !plan.is_active) {
+      throw new ForbiddenException('Você não tem permissão para usar este plano.');
+    }
+
     const maxProducts = plan?.max_products ?? 0;
 
     // 0 = ilimitado (Premium)

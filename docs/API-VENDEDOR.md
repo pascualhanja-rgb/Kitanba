@@ -60,6 +60,24 @@
 }
 ```
 
+#### `403 Forbidden` — plano que não pertence ao vendedor
+
+> Regra: o vendedor só pode usar o plano que lhe pertence. Se já possui loja ativa,
+> só pode reutilizar o **mesmo plano**; plano diferente exige upgrade aprovado pelo admin.
+
+```json
+{
+  "statusCode": 403,
+  "message": "Você não tem permissão para usar este plano. Solicite um upgrade ao administrador."
+}
+```
+
+| Cenário | Resultado |
+|---------|-----------|
+| Vendedor com loja Normal tenta criar loja com `plan_id: 2` (Black) ou `3` (Premium) | `403 Forbidden` — "Você não tem permissão para usar este plano..." |
+| Vendedor com loja Black tenta criar loja com `plan_id: 3` (Premium) | `403 Forbidden` — "Você não tem permissão para usar este plano..." |
+| Plano inexistente ou inativo | `403 Forbidden` — "Você não tem permissão para usar este plano." |
+
 ---
 
 ## 2. Listar Minhas Lojas
@@ -670,8 +688,11 @@ Nenhum.
 
 | Campo | Tipo | Obrigatório | Descrição |
 |-------|------|-------------|-----------|
-| `requested_plan_id` | number | ✅ | ID do plano desejado |
+| `requested_plan_id` | number | ✅ | ID do plano desejado (deve ser **superior** ao plano atual) |
 | `payment_proof_url` | string | ❌ | URL do comprovativo de pagamento |
+
+> Regra: hierarquia **Normal < Black < Premium**. Só é permitido pedir upgrade para plano
+> **estritamente superior** ao atual. Plano igual ou inferior é rejeitado.
 
 ### Resposta / Status
 
@@ -683,6 +704,18 @@ Nenhum.
   "status": "pending",
   "message": "Solicitação de upgrade enviada. Aguarda aprovação do admin."
 }
+```
+
+#### `400 Bad Request` — plano igual ao atual
+
+```json
+{ "statusCode": 400, "message": "A loja já possui o plano Black. Escolha um plano superior para fazer upgrade." }
+```
+
+#### `403 Forbidden` — plano inferior, inexistente ou inativo
+
+```json
+{ "statusCode": 403, "message": "Você não tem permissão para usar este plano. O upgrade só é permitido para um plano superior." }
 ```
 
 ---

@@ -51,7 +51,11 @@ export class LivesService {
 
     const plan = store.plan as SellerPlan;
 
-    if (!plan?.allow_live_stream) {
+    if (!plan || !plan.is_active) {
+      throw new ForbiddenException('Você não tem permissão para usar este plano.');
+    }
+
+    if (!plan.allow_live_stream) {
       throw new ForbiddenException(
         'O seu plano não permite realizar transmissões ao vivo.',
       );

@@ -131,6 +131,10 @@ export class AdvertisementsService {
       throw new ForbiddenException('Loja sem plano associado');
     }
 
+    if (!plan.is_active) {
+      throw new ForbiddenException('Você não tem permissão para usar este plano.');
+    }
+
     const allowedByType: Record<string, boolean> = {
       flyer: !!plan.allow_flyer_ads,
       banner: !!plan.allow_banner_ads,

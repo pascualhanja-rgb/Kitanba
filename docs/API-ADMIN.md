@@ -606,7 +606,7 @@ Nenhum.
 |-------|-------|
 | **Método** | `POST` |
 | **Endpoint** | `/stores/admin/upgrade-requests/{requestId}` |
-| **Descrição do Contrato** | Aprova ou rejeita uma solicitação de upgrade. Se aprovado, o plano da loja é atualizado automaticamente. |
+| **Descrição do Contrato** | Aprova ou rejeita uma solicitação de upgrade. Se aprovado, o plano da loja é atualizado automaticamente. A API garante que a mudança só ocorre para plano **superior** (hierarquia Normal < Black < Premium). |
 | **Permissão** | 🔒 Bearer Token (role: `admin`) |
 
 ### Payload (Request Body)
@@ -633,6 +633,15 @@ Nenhum.
   "status": "approved",
   "message": "Upgrade aprovado. Plano da loja atualizado."
 }
+```
+
+#### `403 Forbidden` — mudança de plano inválida (não é upgrade)
+
+> Se o plano solicitado não for estritamente superior ao atual da loja (ex: downgrade ou plano inativo),
+> a API rejeita a aplicação da mudança.
+
+```json
+{ "statusCode": 403, "message": "Você não tem permissão para usar este plano. A mudança só é permitida para um plano superior." }
 ```
 
 ---

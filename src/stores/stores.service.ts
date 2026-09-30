@@ -16,6 +16,7 @@ import { CreateStoreDto } from './dto/create-store.dto.js';
 import { UpdateStoreDto } from './dto/update-store.dto.js';
 import { EmailService } from '../email/email.service.js';
 import { RedisService } from '../common/redis/redis.service.js';
+import { PlanPermissionsService } from '../plans/plan-permissions.service.js';
 import { sanitizeHtml } from '../common/utils/sanitize.util.js';
 
 @Injectable()
@@ -34,6 +35,7 @@ export class StoresService {
     private readonly statusLogRepository: Repository<StoreStatusLog>,
     private readonly emailService: EmailService,
     private readonly redisService: RedisService,
+    private readonly planPermissionsService: PlanPermissionsService,
   ) {}
 
   /**
@@ -68,6 +70,10 @@ export class StoresService {
     if (existing) {
       throw new BadRequestException('Já existe uma loja com este nome');
     }
+
+    // Regra: o vendedor só pode usar o plano que lhe pertence.
+    // Se já tem loja ativa, só pode reutilizar o MESMO plano; plano diferente exige upgrade aprovado pelo admin.
+    await this.planPermissionsService.assertCanUsePlan(createStoreDto.plan_id, userId);
 
     const slug = this.generateSlug(createStoreDto.name);
 
@@ -307,6 +313,7 @@ export class StoresService {
 
   /**
    * Solicitar upgrade de plano
+   * Regra: só é permitido para plano ESTRITAMENTE superior ao atual (Normal < Black < Premium).
    */
   async requestPlanUpgrade(
     storeId: string,
@@ -323,6 +330,10 @@ export class StoresService {
     if (store.status !== 'active') {
       throw new BadRequestException('Loja precisa estar ativa');
     }
+
+    // Regra: vendedor não pode usar plano que não lhe pertence.
+    // Só pode pedir upgrade para plano superior ao que possui.
+    await this.planPermissionsService.assertValidUpgradeRequest(storeId, requestedPlanId);
 
     const request = this.upgradeRequestRepository.create({
       store_id: storeId,
@@ -374,8 +385,13 @@ export class StoresService {
       const store = request.store as Store;
       const oldPlanId = store.plan_id;
 
-      store.plan_id = request.requested_plan_id;
-      await this.storeRepository.save(store);
+      // Regra: aplicar apenas se o novo plano for superior ao atual (hierarquia Normal < Black < Premium)
+      await this.planPermissionsService.applyPlanChange(
+        store.id,
+        request.requested_plan_id,
+        adminId,
+        adminNotes || 'Upgrade aprovado',
+      );
 
       // Registrar mudança de plano
       const planChange = this.planChangeRepository.create({

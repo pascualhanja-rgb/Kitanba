@@ -63,9 +63,43 @@ export class ProductsService {
   }
 
   /**
+   * Regra de negócio: validar limite de produtos contra seller_plans.max_products
+   * max_products = 0 => ilimitado (plano Premium)
+   */
+  private async assertProductLimit(storeId: string): Promise<void> {
+    const store = await this.storeRepository.findOne({
+      where: { id: storeId },
+      relations: ['plan'],
+    });
+
+    if (!store) {
+      throw new NotFoundException('Loja não encontrada');
+    }
+
+    const plan = store.plan as any;
+    const maxProducts = plan?.max_products ?? 0;
+
+    // 0 = ilimitado (Premium)
+    if (maxProducts === 0) return;
+
+    const count = await this.productRepository.count({
+      where: { store_id: storeId, is_active: true },
+    });
+
+    if (count >= maxProducts) {
+      throw new ForbiddenException(
+        `Limite de ${maxProducts} produtos atingido para o plano atual. Faça upgrade do plano para adicionar mais produtos.`,
+      );
+    }
+  }
+
+  /**
    * Criar produto
    */
   async create(createProductDto: CreateProductDto, storeId: string) {
+    // Regra: limite de produtos do plano
+    await this.assertProductLimit(storeId);
+
     // Sanitizar campos de texto (proteção XSS)
     if (createProductDto.title) {
       createProductDto.title = sanitizeHtml(createProductDto.title);

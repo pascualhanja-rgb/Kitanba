@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
@@ -6,7 +7,7 @@ import { AppModule } from './app.module.js';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Security: Helmet - proteção contra ataques comuns
   app.use(helmet());
@@ -34,7 +35,10 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // Security: Trust proxy (para rate limiting correto atrás de proxy)
-  // Nota: Em produção, configurar conforme o proxy utilizado
+  // Em produção (Render, Heroku, etc.) o app corre atrás de 1 reverse proxy.
+  // Sem isto, request.ip = IP interno do Render para TODOS os clientes => throttler
+  // bloqueia o servidor inteiro após poucas requisições (HTTP 429 global).
+  app.set('trust proxy', 1);
 
   // Swagger (API Documentation)
   const config = new DocumentBuilder()

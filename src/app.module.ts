@@ -107,9 +107,11 @@ import { StoreAffiliate } from './affiliates/entities/store-affiliate.entity.js'
     }),
 
     // Rate Limiting Global
+    // 20 req/min por IP real (com trust proxy ativo no main.ts, o IP
+    // respeita X-Forwarded-For atrás do proxy do Render)
     ThrottlerModule.forRoot([{
       ttl: 60000,
-      limit: 10,
+      limit: 20,
     }]),
 
     // Redis Cache

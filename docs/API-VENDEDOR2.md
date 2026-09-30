@@ -297,5 +297,23 @@
 | 1 | Associar afiliado valida `max_affiliates` do plano → `403` "Limite de afiliados atingido para o plano atual." | `POST /affiliates` |
 | 1 | Iniciar live valida `allow_live_stream` → `403` "O seu plano não permite realizar transmissões ao vivo." | `POST /lives/start` |
 | 2 | Confirmar pedido cria entrega (pickup = loja, destino = cliente) | `PATCH /orders/:id/confirm` |
+| 3 | Criar produto valida `max_products` do plano → `403` "Limite de N produtos atingido para o plano atual..." (`0` = ilimitado, apenas Premium) | `POST /products` |
+| 3 | Criar anúncio valida o tipo contra `allow_flyer_ads` / `allow_banner_ads` / `allow_video_ads` do plano → `403` "O seu plano não permite anúncios do tipo..." | `POST /advertisements` |
 | 4 | Perfil fiscal usado na fatura; fallback para vendedor individual | `POST /billing-profile` |
 | 5 | Campanha ativa altera preço retornado no catálogo | `POST /campaigns` |
+
+### Matriz de Permissões por Plano (aplicada no backend)
+
+> Regra rigorosa: hierarquia **Normal < Black < Premium**. Um plano só tem acesso ao que está na sua linha —
+> plano Normal **não** acede a recursos Black/Premium; plano Black **não** acede a recursos Premium.
+
+| Recurso | Normal | Black | Premium |
+|---------|--------|-------|----------|
+| Produtos (`max_products`, `0` = ilimitado) | 50 | 200 | Ilimitado (0) |
+| Anúncios flyer (`allow_flyer_ads`) | ❌ | ✅ | ✅ |
+| Anúncios banner (`allow_banner_ads`) | ❌ | ❌ | ✅ |
+| Anúncios vídeo (`allow_video_ads`) | ❌ | ❌ | ✅ |
+| Afiliados/equipe (`max_affiliates`) | 0 | 3 | Ilimitado (999999) |
+| Lives (`allow_live_stream`) | ❌ | ❌ | ✅ |
+
+> Contratos (Método/Endpoint/payload/resposta) permanecem inalterados — a validação é interna no service.

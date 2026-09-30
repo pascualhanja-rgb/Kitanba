@@ -113,6 +113,44 @@ export class AdvertisementsService {
   }
 
   /**
+   * Regra de negócio: validar se o plano da loja permite o tipo de anúncio
+   * (allow_flyer_ads / allow_banner_ads / allow_video_ads em seller_plans)
+   */
+  private async assertPlanAllowsAdType(storeId: string, adType: string): Promise<void> {
+    const store = await this.storeRepository.findOne({
+      where: { id: storeId },
+      relations: ['plan'],
+    });
+
+    if (!store) {
+      throw new NotFoundException('Loja não encontrada');
+    }
+
+    const plan = store.plan as any;
+    if (!plan) {
+      throw new ForbiddenException('Loja sem plano associado');
+    }
+
+    const allowedByType: Record<string, boolean> = {
+      flyer: !!plan.allow_flyer_ads,
+      banner: !!plan.allow_banner_ads,
+      video: !!plan.allow_video_ads,
+    };
+
+    const allowed = allowedByType[adType];
+
+    if (allowed === undefined) {
+      throw new BadRequestException(`Tipo de anúncio inválido: ${adType}`);
+    }
+
+    if (!allowed) {
+      throw new ForbiddenException(
+        `O seu plano não permite anúncios do tipo "${adType}". Faça upgrade do plano para desbloquear.`,
+      );
+    }
+  }
+
+  /**
    * Criar anúncio - usando nomes corretos das colunas SQL
    */
   async create(createAdDto: CreateAdvertisementDto, storeId: string) {
@@ -124,6 +162,9 @@ export class AdvertisementsService {
     if (!adPlan) {
       throw new NotFoundException('Plano de publicidade não encontrado');
     }
+
+    // Regra: plano da loja deve permitir o tipo de anúncio (flyer/banner/video)
+    await this.assertPlanAllowsAdType(storeId, adPlan.ad_type);
 
     // Validar media_url
     if (createAdDto.media_url && !isValidSecureUrl(createAdDto.media_url)) {

@@ -30,7 +30,7 @@ import { User } from '../users/entities/user.entity.js';
 export class AdvertisementsController {
   constructor(private readonly adsService: AdvertisementsService) {}
 
-  // ==================== PÚBLICO ====================
+  // ==================== 1. ROTAS PÚBLICAS (ESTÁTICAS) ====================
 
   @Get('active')
   @ApiOperation({ summary: 'Listar anúncios ativos (público)' })
@@ -44,36 +44,7 @@ export class AdvertisementsController {
     return this.adsService.findActiveAdPlans();
   }
 
-  // ==================== VENDEDOR ====================
-
-  @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('seller')
-  @ApiBearerAuth()
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Criar anúncio (Vendedor) - store_id resolvido automaticamente' })
-  async create(
-    @Body() dto: CreateAdvertisementDto,
-    @CurrentUser() user: User,
-  ) {
-    const storeId = await this.adsService.resolveStoreId(user.id);
-    return this.adsService.create(dto, storeId);
-  }
-
-  @Get('my/:storeId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('seller')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Listar anúncios da minha loja' })
-  async findByStore(
-    @Param('storeId') storeId: string,
-    @CurrentUser() user: User,
-  ) {
-    await this.adsService.verifyStoreOwnership(storeId, user.id);
-    return this.adsService.findByStore(storeId);
-  }
-
-  // ==================== ADMIN ====================
+  // ==================== 2. ROTAS DE ADMIN (ESTÁTICAS) ====================
 
   @Get('admin/all')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -102,6 +73,37 @@ export class AdvertisementsController {
   async createAdPlan(@Body() dto: any) {
     return this.adsService.createAdPlan(dto);
   }
+
+  // ==================== 3. ROTAS DE VENDEDOR ====================
+
+  @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('seller')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Criar anúncio (Vendedor) - store_id resolvido automaticamente' })
+  async create(
+    @Body() dto: CreateAdvertisementDto,
+    @CurrentUser() user: User,
+  ) {
+    const storeId = await this.adsService.resolveStoreId(user.id);
+    return this.adsService.create(dto, storeId);
+  }
+
+  @Get('my/:storeId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('seller')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Listar anúncios da minha loja' })
+  async findByStore(
+    @Param('storeId') storeId: string,
+    @CurrentUser() user: User,
+  ) {
+    await this.adsService.verifyStoreOwnership(storeId, user.id);
+    return this.adsService.findByStore(storeId);
+  }
+
+  // ==================== 4. ROTAS DINÂMICAS POR ID ====================
 
   @Post(':id/approve')
   @UseGuards(JwtAuthGuard, RolesGuard)

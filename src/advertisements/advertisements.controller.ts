@@ -56,7 +56,6 @@ export class AdvertisementsController {
     @Body() dto: CreateAdvertisementDto,
     @CurrentUser() user: User,
   ) {
-    // Resolver store_id a partir do vendedor
     const storeId = await this.adsService.resolveStoreId(user.id);
     return this.adsService.create(dto, storeId);
   }
@@ -70,7 +69,6 @@ export class AdvertisementsController {
     @Param('storeId') storeId: string,
     @CurrentUser() user: User,
   ) {
-    // Verificar ownership
     await this.adsService.verifyStoreOwnership(storeId, user.id);
     return this.adsService.findByStore(storeId);
   }

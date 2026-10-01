@@ -36,6 +36,27 @@ export class DeliveriesService {
   ) {}
 
   /**
+   * Listar todas as entregas da plataforma (supervisão admin)
+   */
+  async findAll(page = 1, limit = 20, status?: string) {
+    const where: any = {};
+    if (status) where.status = status;
+
+    const [data, total] = await this.deliveryRepository.findAndCount({
+      where,
+      relations: ['store', 'courier', 'customer'],
+      skip: (page - 1) * limit,
+      take: limit,
+      order: { created_at: 'DESC' },
+    });
+
+    return {
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  /**
    * Listar entregas disponíveis (estafeta procurar trabalho)
    */
   async findAvailable(courierUserId: string) {

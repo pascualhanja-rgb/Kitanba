@@ -34,6 +34,26 @@ import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 export class DeliveriesController {
   constructor(private readonly deliveriesService: DeliveriesService) {}
 
+  @Get()
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @ApiOperation({ summary: 'Listar todas as entregas da plataforma (Admin)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'Lista de entregas com paginação' })
+  async findAll(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: string,
+  ) {
+    return this.deliveriesService.findAll(
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 20,
+      status,
+    );
+  }
+
   @Get('available')
   @UseGuards(RolesGuard)
   @Roles('customer', 'seller')

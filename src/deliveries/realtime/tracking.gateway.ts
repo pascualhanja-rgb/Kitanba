@@ -13,6 +13,7 @@ import { Repository } from 'typeorm';
 
 import { User } from '../../users/entities/user.entity.js';
 import { RealtimeService } from './realtime.service.js';
+import { ChatService } from '../../chat/chat.service.js';
 
 @WebSocketGateway({
   cors: { origin: process.env.APP_URL || 'http://localhost:3000' },
@@ -31,6 +32,7 @@ export class TrackingGateway
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly realtimeService: RealtimeService,
+    private readonly chatService: ChatService,
   ) {}
 
   afterInit() {
@@ -131,5 +133,36 @@ export class TrackingGateway
   handleLiveUnsubscribe(client: Socket, liveId: string) {
     client.leave(`live:${liveId}`);
     return { event: 'unsubscribed', data: { room: `live:${liveId}` } };
+  }
+
+  /**
+   * Entrar na sala de um chat (cliente e vendedor recebem mensagens em tempo real)
+   */
+  @SubscribeMessage('chat:subscribe')
+  async handleChatSubscribe(client: Socket, roomId: string) {
+    const user = (client as any).data.user;
+    if (!user) return { event: 'error', data: { message: 'Não autenticado' } };
+
+    try {
+      const allowed = await this.chatService.verifyRoomOwnership(roomId, user.id);
+      if (!allowed) {
+        return { event: 'error', data: { message: 'Sem permissão para esta sala' } };
+      }
+
+      client.join(`chat:${roomId}`);
+      return { event: 'subscribed', data: { room: `chat:${roomId}` } };
+    } catch (error) {
+      this.logger.warn(`chat:subscribe falhou: ${error.message}`);
+      return { event: 'error', data: { message: 'Sala não encontrada' } };
+    }
+  }
+
+  /**
+   * Sair da sala de um chat
+   */
+  @SubscribeMessage('chat:unsubscribe')
+  handleChatUnsubscribe(client: Socket, roomId: string) {
+    client.leave(`chat:${roomId}`);
+    return { event: 'unsubscribed', data: { room: `chat:${roomId}` } };
   }
 }

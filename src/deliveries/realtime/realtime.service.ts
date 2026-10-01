@@ -52,4 +52,22 @@ export class RealtimeService {
 
     this.io.to(`live:${liveId}`).emit('live:comment', comment);
   }
+
+  /**
+   * Emitir nova mensagem de chat para a sala (cliente + vendedor em tempo real)
+   */
+  emitChatMessage(roomId: string, message: any) {
+    if (!this.io) return;
+
+    this.io.to(`chat:${roomId}`).emit('chat:new_message', message);
+  }
+
+  /**
+   * Notificar que as mensagens de uma sala foram lidas (limpa "não lidas" na UI)
+   */
+  emitChatRead(roomId: string, payload: { room_id: string; reader_id: string }) {
+    if (!this.io) return;
+
+    this.io.to(`chat:${roomId}`).emit('chat:read', payload);
+  }
 }

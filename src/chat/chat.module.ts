@@ -8,11 +8,13 @@ import { Message } from './entities/message.entity.js';
 import { User } from '../users/entities/user.entity.js';
 import { Store } from '../stores/entities/store.entity.js';
 import { RedisModule } from '../common/redis/redis.module.js';
+import { DeliveriesModule } from '../deliveries/deliveries.module.js';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ChatRoom, Message, User, Store]),
     RedisModule,
+    DeliveriesModule,
   ],
   controllers: [ChatController],
   providers: [ChatService],

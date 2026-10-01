@@ -14,6 +14,7 @@ import { User } from '../users/entities/user.entity.js';
 import { Store } from '../stores/entities/store.entity.js';
 import { RedisService } from '../common/redis/redis.service.js';
 import { sanitizeHtml } from '../common/utils/sanitize.util.js';
+import { RealtimeService } from '../deliveries/realtime/realtime.service.js';
 
 @Injectable()
 export class ChatService {
@@ -30,6 +31,7 @@ export class ChatService {
     @InjectRepository(Store)
     private readonly storeRepository: Repository<Store>,
     private readonly redisService: RedisService,
+    private readonly realtimeService: RealtimeService,
   ) {}
 
   /**
@@ -128,6 +130,13 @@ export class ChatService {
 
     // Invalidar cache de mensagens
     await this.redisService.del(`chat:room:${roomId}:messages`);
+    await this.redisService.del(`chat:room:${roomId}:messages:1`);
+
+    // Tempo real: notificar cliente e vendedor conectados à sala (sem reload)
+    this.realtimeService.emitChatMessage(roomId, {
+      ...saved,
+      sender: { id: senderId },
+    });
 
     this.logger.log(
       `Mensagem enviada na sala ${roomId} por ${senderId}`,
@@ -264,6 +273,12 @@ export class ChatService {
       .andWhere('sender_id != :userId', { userId })
       .andWhere('is_read = false')
       .execute();
+
+    // Tempo real: avisar a sala para limpar badges de "não lidas"
+    this.realtimeService.emitChatRead(roomId, {
+      room_id: roomId,
+      reader_id: userId,
+    });
 
     return { message: 'Mensagens marcadas como lidas' };
   }

@@ -53,7 +53,7 @@ export class Advertisement {
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 
-  // Relations - string refs to avoid circular deps
+  // Relations
   @ManyToOne('Store', (store: any) => store.advertisements, {
     onDelete: 'CASCADE',
   })

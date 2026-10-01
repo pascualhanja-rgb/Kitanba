@@ -114,7 +114,6 @@ export class AdvertisementsService {
 
   /**
    * Regra de negócio: validar se o plano da loja permite o tipo de anúncio
-   * (allow_flyer_ads / allow_banner_ads / allow_video_ads em seller_plans)
    */
   private async assertPlanAllowsAdType(storeId: string, adType: string): Promise<void> {
     const store = await this.storeRepository.findOne({
@@ -155,10 +154,9 @@ export class AdvertisementsService {
   }
 
   /**
-   * Criar anúncio - usando nomes corretos das colunas SQL
+   * Criar anúncio
    */
   async create(createAdDto: CreateAdvertisementDto, storeId: string) {
-    // Verificar se o plano existe
     const adPlan = await this.adPlanRepository.findOne({
       where: { id: createAdDto.ad_plan_id, is_active: true },
     });
@@ -167,21 +165,16 @@ export class AdvertisementsService {
       throw new NotFoundException('Plano de publicidade não encontrado');
     }
 
-    // Regra: plano da loja deve permitir o tipo de anúncio (flyer/banner/video)
     await this.assertPlanAllowsAdType(storeId, adPlan.ad_type);
 
-    // Validar media_url
     if (createAdDto.media_url && !isValidSecureUrl(createAdDto.media_url)) {
       throw new BadRequestException('URL de mídia inválida ou insegura');
     }
 
-    // Sanitizar título
     const title = createAdDto.title
       ? sanitizeHtml(createAdDto.title)
       : adPlan.name;
 
-    // Calcular data de término
-    // Se o plano não tiver duration_days definido, usa 14 dias por padrão
     const durationDays = adPlan.duration_days || 14;
     const startDate = new Date(createAdDto.start_date);
     const endDate = new Date(startDate);
@@ -209,14 +202,7 @@ export class AdvertisementsService {
   }
 
   /**
-   * Listar anúncios ativos (público) - visível a TODOS os utilizadores
-   * 
-   * Regra: O anúncio é visível quando:
-   *   1. status = 'active'
-   *   2. start_date <= agora (já começou)
-   *   3. end_date >= agora (ainda não terminou)
-   * 
-   * Por padrão, um anúncio fica visível por 14 dias após aprovação.
+   * Listar anúncios ativos (público)
    */
   async findActive() {
     const cacheKey = 'ads:active:all';
@@ -243,7 +229,6 @@ export class AdvertisementsService {
 
   /**
    * Listar anúncios de uma loja (vendedor)
-   * Mostra todos os anúncios da loja (pendentes, ativos, rejeitados)
    */
   async findByStore(storeId: string) {
     return this.adRepository.find({
@@ -266,21 +251,7 @@ export class AdvertisementsService {
   }
 
   /**
-   * Verificar se um anúncio está dentro do período de 14 dias
-   */
-  private isWithinVisibilityPeriod(ad: Advertisement): boolean {
-    const now = new Date();
-    return ad.start_date <= now && ad.end_date >= now;
-  }
-
-  /**
    * Aprovar anúncio (Admin)
-   * 
-   * Quando aprovado:
-   *   - Se start_date é no passado, mantém (já começou)
-   *   - Se start_date é no futuro, usa agora (começa imediatamente)
-   *   - end_date é recalculado para start_date + duration_days
-   *   - O anúncio fica visível por 14 dias (ou duração do plano)
    */
   async approve(id: string) {
     const ad = await this.adRepository.findOne({
@@ -295,12 +266,10 @@ export class AdvertisementsService {
     const now = new Date();
     const durationDays = ad.ad_plan?.duration_days || 14;
 
-    // Se start_date é no futuro, começa agora
     if (ad.start_date > now) {
       ad.start_date = now;
     }
 
-    // Recalcular end_date baseado no start_date
     const endDate = new Date(ad.start_date);
     endDate.setDate(endDate.getDate() + durationDays);
     ad.end_date = endDate;

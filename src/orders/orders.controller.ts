@@ -29,6 +29,27 @@ import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Listar todos os pedidos da plataforma (Admin)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'status', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'Lista de pedidos com paginação' })
+  async findAll(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: string,
+  ) {
+    return this.ordersService.findAll(
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 20,
+      status,
+    );
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('customer')
@@ -52,7 +73,7 @@ export class OrdersController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.ordersService.findByCustomer(user.id, page || 1, limit || 20);
+    return this.ordersService.findByCustomer(user.id, page ? Number(page) : 1, limit ? Number(limit) : 20);
   }
 
   @Get('store')
@@ -70,7 +91,7 @@ export class OrdersController {
     @Query('status') status?: string,
   ) {
     const storeId = await this.ordersService.resolveStoreId(user.id);
-    return this.ordersService.findByStore(storeId, page || 1, limit || 20, status);
+    return this.ordersService.findByStore(storeId, page ? Number(page) : 1, limit ? Number(limit) : 20, status);
   }
 
   @Patch(':id/confirm')

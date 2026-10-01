@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { Repository, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 
 import { Advertisement } from './entities/advertisement.entity.js';
 import { AdPricingPlan } from './entities/ad-pricing-plan.entity.js';
@@ -30,12 +30,8 @@ export class AdvertisementsService {
     private readonly redisService: RedisService,
   ) {}
 
-  /**
-   * Resolver store_id a partir do user_id (vendedor)
-   */
   async resolveStoreId(userId: string): Promise<string> {
     const cacheKey = `seller:store:${userId}`;
-
     const cached = await this.redisService.get<string>(cacheKey);
     if (cached) return cached;
 
@@ -44,19 +40,13 @@ export class AdvertisementsService {
     });
 
     if (!store) {
-      throw new ForbiddenException(
-        'Utilizador não possui uma loja ativa.',
-      );
+      throw new ForbiddenException('Utilizador não possui uma loja ativa.');
     }
 
     await this.redisService.set(cacheKey, store.id, 600);
-
     return store.id;
   }
 
-  /**
-   * Verificar se o vendedor é proprietário da loja
-   */
   async verifyStoreOwnership(storeId: string, userId: string): Promise<void> {
     const store = await this.storeRepository.findOne({
       where: { id: storeId },
@@ -72,12 +62,8 @@ export class AdvertisementsService {
     }
   }
 
-  /**
-   * Listar planos de publicidade ativos - com cache
-   */
   async findActiveAdPlans() {
     const cacheKey = 'ads:plans:active';
-
     const cached = await this.redisService.get<any>(cacheKey);
     if (cached) return cached;
 
@@ -87,34 +73,22 @@ export class AdvertisementsService {
     });
 
     await this.redisService.set(cacheKey, plans, this.CACHE_TTL);
-
     return plans;
   }
 
-  /**
-   * Listar todos os planos de publicidade (Admin)
-   */
   async findAllAdPlans() {
     return this.adPlanRepository.find({
       order: { price: 'ASC' },
     });
   }
 
-  /**
-   * Criar plano de publicidade (Admin)
-   */
   async createAdPlan(dto: any) {
     const plan = this.adPlanRepository.create(dto);
     const saved = await this.adPlanRepository.save(plan);
-
     await this.redisService.del('ads:plans:active');
-
     return saved;
   }
 
-  /**
-   * Regra de negócio: validar se o plano da loja permite o tipo de anúncio
-   */
   private async assertPlanAllowsAdType(storeId: string, adType: string): Promise<void> {
     const store = await this.storeRepository.findOne({
       where: { id: storeId },
@@ -126,11 +100,7 @@ export class AdvertisementsService {
     }
 
     const plan = store.plan as any;
-    if (!plan) {
-      throw new ForbiddenException('Loja sem plano associado');
-    }
-
-    if (!plan.is_active) {
+    if (!plan || !plan.is_active) {
       throw new ForbiddenException('Você não tem permissão para usar este plano.');
     }
 
@@ -141,21 +111,17 @@ export class AdvertisementsService {
     };
 
     const allowed = allowedByType[adType];
-
     if (allowed === undefined) {
       throw new BadRequestException(`Tipo de anúncio inválido: ${adType}`);
     }
 
     if (!allowed) {
       throw new ForbiddenException(
-        `O seu plano não permite anúncios do tipo "${adType}". Faça upgrade do plano para desbloquear.`,
+        `O seu plano não permite anúncios do tipo "${adType}". Faça upgrade para continuar.`,
       );
     }
   }
 
-  /**
-   * Criar anúncio
-   */
   async create(createAdDto: CreateAdvertisementDto, storeId: string) {
     const adPlan = await this.adPlanRepository.findOne({
       where: { id: createAdDto.ad_plan_id, is_active: true },
@@ -190,28 +156,20 @@ export class AdvertisementsService {
       start_date: startDate,
       end_date: endDate,
       status: 'pending_approval',
-    } as any);
+    });
 
     const saved = await this.adRepository.save(ad);
-
     await this.redisService.delPattern('ads:active:*');
-
-    this.logger.log(`Novo anúncio criado para loja ${storeId}`);
 
     return saved;
   }
 
-  /**
-   * Listar anúncios ativos (público)
-   */
   async findActive() {
     const cacheKey = 'ads:active:all';
-
     const cached = await this.redisService.get<any>(cacheKey);
     if (cached) return cached;
 
     const now = new Date();
-
     const ads = await this.adRepository.find({
       where: {
         status: 'active',
@@ -223,13 +181,9 @@ export class AdvertisementsService {
     });
 
     await this.redisService.set(cacheKey, ads, 60);
-
     return ads;
   }
 
-  /**
-   * Listar anúncios de uma loja (vendedor)
-   */
   async findByStore(storeId: string) {
     return this.adRepository.find({
       where: { store_id: storeId },
@@ -238,9 +192,6 @@ export class AdvertisementsService {
     });
   }
 
-  /**
-   * Listar todos os anúncios (Admin)
-   */
   async findAll(status?: string) {
     const where = status ? { status } : {};
     return this.adRepository.find({
@@ -250,9 +201,6 @@ export class AdvertisementsService {
     });
   }
 
-  /**
-   * Aprovar anúncio (Admin)
-   */
   async approve(id: string) {
     const ad = await this.adRepository.findOne({
       where: { id },
@@ -276,53 +224,26 @@ export class AdvertisementsService {
 
     ad.status = 'active';
     await this.adRepository.save(ad);
-
     await this.redisService.del('ads:active:all');
 
-    this.logger.log(`Anúncio ${id} aprovado. Visível de ${ad.start_date} até ${ad.end_date}`);
-
-    return {
-      message: 'Anúncio aprovado',
-      id: ad.id,
-      status: ad.status,
-      start_date: ad.start_date,
-      end_date: ad.end_date,
-      visible_days: durationDays,
-    };
+    return { message: 'Anúncio aprovado', id: ad.id, status: ad.status };
   }
 
-  /**
-   * Rejeitar anúncio (Admin)
-   */
   async reject(id: string) {
     const ad = await this.adRepository.findOne({ where: { id } });
-
-    if (!ad) {
-      throw new NotFoundException('Anúncio não encontrado');
-    }
+    if (!ad) throw new NotFoundException('Anúncio não encontrado');
 
     ad.status = 'rejected';
     await this.adRepository.save(ad);
-
-    this.logger.log(`Anúncio ${id} rejeitado`);
-
     return { message: 'Anúncio rejeitado' };
   }
 
-  /**
-   * Eliminar anúncio (Admin)
-   */
   async remove(id: string) {
     const ad = await this.adRepository.findOne({ where: { id } });
-
-    if (!ad) {
-      throw new NotFoundException('Anúncio não encontrado');
-    }
+    if (!ad) throw new NotFoundException('Anúncio não encontrado');
 
     await this.adRepository.remove(ad);
-
     await this.redisService.del('ads:active:all');
-
     return { message: 'Anúncio eliminado' };
   }
 }

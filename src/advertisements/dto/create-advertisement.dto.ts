@@ -6,16 +6,18 @@ import {
   IsUUID,
   MaxLength,
   IsUrl,
+  IsDateString,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateAdvertisementDto {
   @ApiProperty({ example: 1, description: 'ID do plano de publicidade' })
   @IsNumber()
+  @IsNotEmpty()
   ad_plan_id: number;
 
   @ApiPropertyOptional({
-    example: 'uuid-do-produto',
+    example: '550e8400-e29b-41d4-a716-446655440000',
     description: 'ID do produto associado (opcional)',
   })
   @IsOptional()
@@ -36,7 +38,7 @@ export class CreateAdvertisementDto {
     description: 'URL da mídia (imagem JPG/PNG, vídeo MP4, panfleto)',
   })
   @IsOptional()
-  @IsString()
+  @IsUrl({}, { message: 'media_url deve ser uma URL válida' })
   media_url?: string;
 
   @ApiPropertyOptional({
@@ -44,14 +46,14 @@ export class CreateAdvertisementDto {
     description: 'URL de destino ao clicar no anúncio',
   })
   @IsOptional()
-  @IsString()
+  @IsUrl({}, { message: 'target_url deve ser uma URL válida' })
   target_url?: string;
 
   @ApiProperty({
-    example: '2024-01-15T00:00:00Z',
-    description: 'Data de início do anúncio',
+    example: '2026-10-01T00:00:00.000Z',
+    description: 'Data de início do anúncio (formato ISO 8601)',
   })
-  @IsString()
+  @IsDateString({}, { message: 'start_date deve ser uma data válida em formato ISO 8601' })
   @IsNotEmpty()
   start_date: string;
 }

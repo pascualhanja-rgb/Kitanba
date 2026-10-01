@@ -10,11 +10,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 
 import { AdvertisementsService } from './advertisements.service.js';
 import { CreateAdvertisementDto } from './dto/create-advertisement.dto.js';
@@ -54,7 +50,7 @@ export class AdvertisementsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Listar todos os planos de publicidade (Admin)' })
+  @ApiOperation({ summary: 'Listar todos os planos (Admin)' })
   async findAllAdPlans() {
     return this.adsService.findAllAdPlans();
   }

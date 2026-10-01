@@ -28,7 +28,6 @@ export class AdPricingPlan {
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 
-  // Relations - string ref to avoid circular dep
   @OneToMany('Advertisement', (ad: any) => ad.ad_plan)
   advertisements: any[];
 }

@@ -11,7 +11,12 @@ import { RedisModule } from '../common/redis/redis.module.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Advertisement, AdPricingPlan, AdPayment, Store]),
+    TypeOrmModule.forFeature([
+      Advertisement,
+      AdPricingPlan,
+      AdPayment,
+      Store,
+    ]),
     RedisModule,
   ],
   controllers: [AdvertisementsController],

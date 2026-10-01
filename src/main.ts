@@ -9,9 +9,6 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Define o prefixo global /api para todas as rotas (ex: /api/deliveries, /api/orders)
-  app.setGlobalPrefix('api');
-
   // Security: Helmet - proteção contra ataques comuns
   app.use(helmet());
 
@@ -38,6 +35,9 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // Security: Trust proxy (para rate limiting correto atrás de proxy)
+  // Em produção (Render, Heroku, etc.) o app corre atrás de 1 reverse proxy.
+  // Sem isto, request.ip = IP interno do Render para TODOS os clientes => throttler
+  // bloqueia o servidor inteiro após poucas requisições (HTTP 429 global).
   app.set('trust proxy', 1);
 
   // Swagger (API Documentation)

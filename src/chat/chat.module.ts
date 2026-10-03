@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ChatController } from './chat.controller.js';
@@ -14,7 +14,7 @@ import { DeliveriesModule } from '../deliveries/deliveries.module.js';
   imports: [
     TypeOrmModule.forFeature([ChatRoom, Message, User, Store]),
     RedisModule,
-    DeliveriesModule,
+    forwardRef(() => DeliveriesModule),
   ],
   controllers: [ChatController],
   providers: [ChatService],

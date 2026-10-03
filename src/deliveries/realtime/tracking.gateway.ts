@@ -5,7 +5,7 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -32,6 +32,7 @@ export class TrackingGateway
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly realtimeService: RealtimeService,
+    @Inject(forwardRef(() => ChatService))
     private readonly chatService: ChatService,
   ) {}
 

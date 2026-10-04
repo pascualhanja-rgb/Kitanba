@@ -4,8 +4,6 @@
 > **Swagger Docs:** `http://localhost:3000/api/docs`  
 > **Versão:** 1.0
 
----
-
 ## Visão Geral
 
 A API Kitanda é um **marketplace** onde:

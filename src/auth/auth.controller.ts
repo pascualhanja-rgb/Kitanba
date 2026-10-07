@@ -9,6 +9,7 @@ import {
   HttpStatus,
   Headers,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
@@ -38,6 +39,9 @@ export class AuthController {
     return this.authService.register(registerDto);
   }
 
+  // TODO(temporário): @SkipThrottle desativa o rate limit (20 req/min por IP) apenas nesta rota
+  // para testes de carga de login. REVERTER após conclusão dos testes.
+  @SkipThrottle()
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login do utilizador' })

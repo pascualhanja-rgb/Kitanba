@@ -11,7 +11,7 @@ A API Kitanda é um **marketplace** onde:
 - **Vendedores** criam lojas e gerem produtos
 - **Admins** gerem todo o sistema
 
-```
+```ghhuuygg
 ┌─────────────────────────────────────────────────────────┐
 │                    KITANDA API                           │
 ├─────────────────────────────────────────────────────────┤

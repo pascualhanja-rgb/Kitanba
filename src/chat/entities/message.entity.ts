@@ -13,9 +13,16 @@ export class Message {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  // Nullable quando a mensagem é ligada diretamente a um Reels (advertisement_id)
   @Index()
-  @Column({ type: 'uuid' })
+  @Column({ type: 'uuid', nullable: true })
   room_id: string;
+
+  // Mensagem ligada diretamente a um Reels publicado (advertisements)
+  // Quando preenchido, room_id pode ser NULL (mensagem sobre o vídeo)
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  advertisement_id: string;
 
   @Column({ type: 'uuid' })
   sender_id: string;
@@ -45,6 +52,7 @@ export class Message {
   // Relations - string refs to avoid circular deps in ESM
   @ManyToOne('ChatRoom', (room: any) => room.messages, {
     onDelete: 'CASCADE',
+    nullable: true,
   })
   @JoinColumn({ name: 'room_id' })
   room: any;
@@ -52,4 +60,8 @@ export class Message {
   @ManyToOne('User', { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'sender_id' })
   sender: any;
+
+  @ManyToOne('Advertisement', { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'advertisement_id' })
+  advertisement: any;
 }

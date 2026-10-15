@@ -16,7 +16,9 @@ import { User } from '../users/entities/user.entity.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
+import { ClerkAuthDto } from './dto/clerk-auth.dto.js';
 import { RedisService } from '../common/redis/redis.service.js';
+import { ClerkAuthService, type ClerkProfile } from './clerk.service.js';
 
 @Injectable()
 export class AuthService {
@@ -28,6 +30,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    private readonly clerkAuthService: ClerkAuthService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -78,7 +81,8 @@ export class AuthService {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    const isPasswordValid =
+      !!user.password_hash && (await bcrypt.compare(password, user.password_hash));
     if (!isPasswordValid) {
       throw new UnauthorizedException('Credenciais inválidas');
     }
@@ -96,14 +100,139 @@ export class AuthService {
     };
   }
 
+  /**
+   * Login/registro social via Clerk (Google ou Apple).
+   * Valida o token de sessão do Clerk, sincroniza o utilizador
+   * (por clerk_id ou email) e devolve os tokens da aplicação.
+   */
+  async clerkAuth(dto: ClerkAuthDto, ip?: string, userAgent?: string) {
+    const profile: ClerkProfile = await this.clerkAuthService.verifySessionToken(
+      dto.clerk_token,
+    );
+
+    const found = await this.userRepository.findOne({
+      where: { clerk_id: profile.clerkId },
+    });
+
+    let user: User;
+    if (found) {
+      user = found;
+    } else {
+      // Sem clerk_id: tentar ligar à conta existente com o mesmo email
+      const existingByEmail = await this.userRepository.findOne({
+        where: { email: profile.email },
+      });
+
+      if (existingByEmail) {
+        if (existingByEmail.clerk_id && existingByEmail.clerk_id !== profile.clerkId) {
+          throw new ConflictException(
+            'Este email já está ligado a outra conta social. Faça login normalmente.',
+          );
+        }
+        existingByEmail.clerk_id = profile.clerkId;
+        existingByEmail.avatar_url =
+          existingByEmail.avatar_url ?? profile.avatarUrl;
+        user = await this.userRepository.save(existingByEmail);
+      } else {
+        // Primeira vez: cria a conta. password_hash fica nulo (só login social).
+        const newUser = this.userRepository.create({
+          name: profile.name,
+          email: profile.email,
+          clerk_id: profile.clerkId,
+          user_type: dto.user_type || 'customer',
+          is_email_verified: true,
+        });
+        if (profile.avatarUrl) {
+          newUser.avatar_url = profile.avatarUrl;
+        }
+        user = await this.userRepository.save(newUser);
+      }
+    }
+
+    const tokens = await this.generateTokens(user);
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        user_type: user.user_type,
+        avatar_url: user.avatar_url,
+      },
+      ...tokens,
+    };
+  }
+
+  /**
+   * Liga uma conta Clerk (Google/Apple) ao utilizador autenticado atual,
+   * permitindo depois login social na mesma conta.
+   */
+  async linkClerkAccount(userId: string, clerkToken: string) {
+    const profile: ClerkProfile = await this.clerkAuthService.verifySessionToken(
+      clerkToken,
+    );
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Utilizador não encontrado');
+    }
+
+    const takenByOther = await this.userRepository.findOne({
+      where: { clerk_id: profile.clerkId },
+    });
+    if (takenByOther && takenByOther.id !== userId) {
+      throw new ConflictException('Esta conta social já está ligada a outro utilizador');
+    }
+
+    user.clerk_id = profile.clerkId;
+    user.avatar_url = user.avatar_url ?? profile.avatarUrl;
+    user.is_email_verified = true;
+    await this.userRepository.save(user);
+
+    return {
+      message: 'Conta social ligada com sucesso',
+      clerk_provider_email: profile.email,
+    };
+  }
+
+  /**
+   * Desliga a conta social (Clerk) do utilizador autenticado.
+   * Só é possível se a conta tiver senha definida (não ficar sem login possível).
+   */
+  async unlinkClerkAccount(userId: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Utilizador não encontrado');
+    }
+
+    if (!user.clerk_id) {
+      throw new BadRequestException('A conta não está ligada a nenhuma conta social');
+    }
+
+    if (!user.password_hash) {
+      throw new BadRequestException(
+        'Defina uma senha antes de desligar a conta social, caso contrário perde o acesso',
+      );
+    }
+
+    user.clerk_id = null;
+    await this.userRepository.save(user);
+
+    return { message: 'Conta social desligada com sucesso' };
+  }
+
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.userRepository.findOne({
       where: { email },
       select: ['id', 'name', 'email', 'password_hash', 'user_type'],
     });
 
-    if (user && (await bcrypt.compare(pass, user.password_hash))) {
-      const { password_hash, ...result } = user;
+    if (
+      user &&
+      user.password_hash &&
+      (await bcrypt.compare(pass, user.password_hash))
+    ) {
+      const { password_hash, clerk_id, ...result } = user;
       return result;
     }
     return null;
@@ -182,7 +311,9 @@ export class AuthService {
         if (user) {
           targetEmail = user.email;
           if (dto.current_password) {
-            const isMatch = await bcrypt.compare(dto.current_password, user.password_hash);
+            const isMatch =
+              !!user.password_hash &&
+              (await bcrypt.compare(dto.current_password, user.password_hash));
             if (!isMatch) {
               throw new BadRequestException('A senha atual está incorreta');
             }

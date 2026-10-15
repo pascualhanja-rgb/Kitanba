@@ -30,6 +30,10 @@ export class ChatRoom {
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 
+  // Indica se o cliente segue a loja (seguidor)
+  @Column({ type: 'boolean', default: false })
+  is_following: boolean;
+
   // Relations - string refs to avoid circular deps in ESM
   @ManyToOne('User', { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'customer_id' })

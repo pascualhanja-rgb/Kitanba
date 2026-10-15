@@ -3,6 +3,7 @@ import {
   Post,
   Body,
   Get,
+  Delete,
   UseGuards,
   Request,
   HttpCode,
@@ -25,6 +26,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { User } from '../users/entities/user.entity.js';
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
+import { ClerkAuthDto, ClerkLinkDto } from './dto/clerk-auth.dto.js';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -89,6 +91,43 @@ export class AuthController {
     @Headers('authorization') authHeader?: string,
   ) {
     return this.authService.processChangePassword(dto, authHeader);
+  }
+
+  @Post('social')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Login/Registro social via Clerk (Google ou Apple)',
+    description:
+      'Recebe o token de sessão do Clerk (frontend com botão Google/Apple), valida, sincroniza o utilizador e devolve os tokens da aplicação',
+  })
+  @ApiResponse({ status: 200, description: 'Autenticado com sucesso' })
+  @ApiResponse({ status: 401, description: 'Token do Clerk inválido ou expirado' })
+  @ApiResponse({ status: 409, description: 'Email já ligado a outra conta social' })
+  async clerkAuth(@Body() dto: ClerkAuthDto, @Request() req: any) {
+    return this.authService.clerkAuth(dto, req.ip, req.headers?.['user-agent']);
+  }
+
+  @Post('social/link')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Ligar conta social (Google/Apple) à conta autenticada' })
+  @ApiResponse({ status: 200, description: 'Conta social ligada' })
+  @ApiResponse({ status: 401, description: 'Não autenticado ou token Clerk inválido' })
+  @ApiResponse({ status: 409, description: 'Conta social já ligada a outro utilizador' })
+  async linkClerk(@CurrentUser() user: User, @Body() dto: ClerkLinkDto) {
+    return this.authService.linkClerkAccount(user.id, dto.clerk_token);
+  }
+
+  @Delete('social/unlink')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Desligar conta social (Google/Apple) da conta autenticada' })
+  @ApiResponse({ status: 200, description: 'Conta social desligada' })
+  @ApiResponse({ status: 400, description: 'Conta sem senha definida ou não ligada' })
+  async unlinkClerk(@CurrentUser() user: User) {
+    return this.authService.unlinkClerkAccount(user.id);
   }
 
   @Get('profile')

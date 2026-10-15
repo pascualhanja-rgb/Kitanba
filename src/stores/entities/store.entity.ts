@@ -61,6 +61,26 @@ export class Store {
   @Column({ type: 'decimal', precision: 11, scale: 8, nullable: true })
   longitude: number;
 
+  // Número WhatsApp do vendedor (normalizado com prefixo 244 por trigger SQL)
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  whatsapp_number: string;
+
+  // Link gerado a partir do número: https://wa.me/244XXXXXXXXX
+  @Column({ type: 'text', nullable: true })
+  whatsapp_link: string;
+
+  @Column({ type: 'text', nullable: true })
+  instagram_url: string;
+
+  @Column({ type: 'text', nullable: true })
+  facebook_url: string;
+
+  @Column({ type: 'text', nullable: true })
+  tiktok_url: string;
+
+  @Column({ type: 'text', nullable: true })
+  youtube_url: string;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 

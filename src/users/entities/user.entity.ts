@@ -21,14 +21,22 @@ export class User {
   email: string;
 
   @Exclude()
-  @Column({ type: 'varchar', length: 255 })
-  password_hash: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  password_hash: string | null;
+
+  /**
+   * ID do utilizador em contas externas (Clerk — Google, Apple, etc.).
+   * Nulo para contas criadas por email/senha.
+   */
+  @Index({ unique: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  clerk_id: string | null;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
   phone: string;
 
   @Column({ type: 'text', nullable: true })
-  avatar_url: string;
+  avatar_url: string | null;
 
   @Column({ type: 'text', nullable: true })
   document_url: string;

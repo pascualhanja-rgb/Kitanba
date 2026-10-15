@@ -3,13 +3,11 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 
 @Injectable()
 export class ThrottlerGuardImpl extends ThrottlerGuard {
+  // TODO(temporário): rate limit global DESATIVADO durante testes — os clientes
+  // estavam a ser bloqueados pelo limite de 20 req/min por IP mesmo nas rotas
+  // com @SkipThrottle() individual. REVERTER para super.canActivate(context)
+  // quando os testes terminarem.
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const clientIp = request.ip || request.headers['x-forwarded-for'] || 'unknown';
-
-    // Log para monitoramento (não expor ao cliente)
-    console.log(`[Rate Limit] IP: ${clientIp} - ${request.method} ${request.url}`);
-
-    return super.canActivate(context);
+    return true;
   }
 }

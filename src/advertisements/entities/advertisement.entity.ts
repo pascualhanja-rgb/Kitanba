@@ -53,6 +53,22 @@ export class Advertisement {
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 
+  // Reels estilo TikTok
+  @Column({ type: 'boolean', default: false })
+  is_reels: boolean;
+
+  @Column({ type: 'int', default: 0 })
+  likes_count: number;
+
+  @Column({ type: 'int', default: 0 })
+  comments_count: number;
+
+  @Column({ type: 'int', default: 0 })
+  saves_count: number;
+
+  @Column({ type: 'int', default: 0 })
+  shares_count: number;
+
   // Relations
   @ManyToOne('Store', (store: any) => store.advertisements, {
     onDelete: 'CASCADE',

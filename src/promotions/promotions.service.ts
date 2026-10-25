@@ -1,8 +1,17 @@
-import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PromotionalCampaign } from './entities/promotional-campaign.entity.js';
 import { CampaignProduct } from './entities/campaign-product.entity.js';
+import {
+  CreateCampaignDto,
+  UpdateCampaignDto,
+} from './dto/create-campaign.dto.js';
 import { Store } from '../stores/entities/store.entity.js';
 import { RedisService } from '../common/redis/redis.service.js';
 
@@ -87,6 +96,154 @@ export class PromotionsService {
   /**
    * Resolver store_id do vendedor autenticado
    */
+  // ==================== CRUD DE CAMPANHAS ====================
+
+  /**
+   * Listar campanhas ativas agora (público - "Sextou")
+   */
+  async findActiveNow(page = 1, limit = 20) {
+    const now = new Date();
+
+    const query = this.campaignRepository
+      .createQueryBuilder('campaign')
+      .leftJoinAndSelect('campaign.campaign_products', 'cp')
+      .where('campaign.is_active = :isActive', { isActive: true })
+      .andWhere('campaign.starts_at <= :now', { now })
+      .andWhere('campaign.ends_at >= :now', { now })
+      .orderBy('campaign.created_at', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [data, total] = await query.getManyAndCount();
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async findOne(id: string) {
+    const campaign = await this.campaignRepository.findOne({
+      where: { id },
+      relations: ['campaign_products'],
+    });
+
+    if (!campaign) {
+      throw new NotFoundException('Campanha não encontrada.');
+    }
+
+    return campaign;
+  }
+
+  async create(dto: CreateCampaignDto, storeId: string) {
+    const saved = await this.campaignRepository.save(
+      this.campaignRepository.create({
+        store_id: storeId,
+        title: dto.title,
+        campaign_type: dto.campaign_type ?? 'sextou',
+        starts_at: new Date(dto.starts_at),
+        ends_at: new Date(dto.ends_at),
+        is_active: dto.is_active ?? true,
+      }),
+    );
+
+    await this.campaignProductRepository.insert(
+      dto.products.map((p) =>
+        this.campaignProductRepository.create({
+          campaign_id: saved.id,
+          product_id: p.product_id,
+          promotional_price: p.promotional_price,
+        }),
+      ),
+    );
+
+    this.logger.log(
+      `Campanha "${saved.title}" criada para loja ${storeId} com ${dto.products.length} produto(s).`,
+    );
+
+    return this.findOne(saved.id);
+  }
+
+  async findByStore(storeId: string) {
+    return this.campaignRepository.find({
+      where: { store_id: storeId },
+      relations: ['campaign_products'],
+      order: { created_at: 'DESC' },
+    });
+  }
+
+  private async findOwnedCampaign(
+    id: string,
+    storeId: string,
+  ): Promise<PromotionalCampaign> {
+    const campaign = await this.campaignRepository.findOne({
+      where: { id },
+      relations: ['campaign_products'],
+    });
+
+    if (!campaign) {
+      throw new NotFoundException('Campanha não encontrada.');
+    }
+
+    if (campaign.store_id !== storeId) {
+      throw new ForbiddenException(
+        'Você não tem permissão para modificar esta campanha.',
+      );
+    }
+
+    return campaign;
+  }
+
+  async update(id: string, dto: UpdateCampaignDto, storeId: string) {
+    const campaign = await this.findOwnedCampaign(id, storeId);
+
+    if (dto.title !== undefined) campaign.title = dto.title;
+    if (dto.starts_at !== undefined)
+      campaign.starts_at = new Date(dto.starts_at);
+    if (dto.ends_at !== undefined) campaign.ends_at = new Date(dto.ends_at);
+    if (dto.is_active !== undefined) campaign.is_active = dto.is_active;
+
+    await this.campaignRepository.save(campaign);
+
+    // Substituir produtos da campanha, se enviados
+    if (dto.products) {
+      await this.campaignProductRepository.delete({ campaign_id: id });
+      const newProducts = dto.products.map((p) =>
+        this.campaignProductRepository.create({
+          campaign_id: id,
+          product_id: p.product_id,
+          promotional_price: p.promotional_price,
+        }),
+      );
+      await this.campaignProductRepository.insert(newProducts);
+    }
+
+    return this.findOne(id);
+  }
+
+  async toggleActive(id: string, storeId: string) {
+    const campaign = await this.findOwnedCampaign(id, storeId);
+
+    campaign.is_active = !campaign.is_active;
+    await this.campaignRepository.save(campaign);
+
+    return this.findOne(id);
+  }
+
+  async remove(id: string, storeId: string) {
+    const campaign = await this.findOwnedCampaign(id, storeId);
+
+    await this.campaignProductRepository.delete({ campaign_id: id });
+    await this.campaignRepository.remove(campaign);
+
+    return { deleted: true };
+  }
+
   async resolveStoreId(userId: string): Promise<string> {
     const cacheKey = `seller:store:${userId}`;
 

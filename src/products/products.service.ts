@@ -36,6 +36,19 @@ export class ProductsService {
   ) {}
 
   /**
+   * Converte campos decimais/numéricos de string para number para o app mobile
+   */
+  private formatProduct(product: any) {
+    if (!product) return product;
+    return {
+      ...product,
+      price: product.price !== null && product.price !== undefined ? Number(product.price) : null,
+      shipping_cost: product.shipping_cost !== null && product.shipping_cost !== undefined ? Number(product.shipping_cost) : null,
+      stock_quantity: product.stock_quantity !== null && product.stock_quantity !== undefined ? Number(product.stock_quantity) : 0,
+    };
+  }
+
+  /**
    * Resolver store_id a partir do user_id (vendedor)
    * Cada vendedor só pode ter uma loja ativa
    */
@@ -169,7 +182,13 @@ export class ProductsService {
 
     // Tentar cache
     const cached = await this.redisService.get<any>(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      // Formatar caso venha do cache em formato antigo/string
+      if (cached.data && Array.isArray(cached.data)) {
+        cached.data = cached.data.map((p) => this.formatProduct(p));
+      }
+      return cached;
+    }
 
     const query = this.productRepository
       .createQueryBuilder('product')
@@ -199,9 +218,10 @@ export class ProductsService {
 
     // Regra de negócio #5: anexar preço promocional de campanha ativa ("Sextou")
     const dataWithPromos = await this.promotionsService.applyPromotionalPrices(data);
+    const formattedData = dataWithPromos.map((p) => this.formatProduct(p));
 
     const result = {
-      data: dataWithPromos,
+      data: formattedData,
       meta: {
         total,
         page,
@@ -221,11 +241,11 @@ export class ProductsService {
   /**
    * Obter produto por ID - com cache Redis
    */
-  async findOne(id: string): Promise<Product> {
+  async findOne(id: string): Promise<any> {
     const cacheKey = `product:${id}`;
 
-    const cached = await this.redisService.get<Product>(cacheKey);
-    if (cached) return cached;
+    const cached = await this.redisService.get<any>(cacheKey);
+    if (cached) return this.formatProduct(cached);
 
     const product = await this.productRepository.findOne({
       where: { id },
@@ -236,9 +256,10 @@ export class ProductsService {
       throw new NotFoundException('Produto não encontrado');
     }
 
-    await this.redisService.set(cacheKey, product, this.CACHE_TTL);
+    const formatted = this.formatProduct(product);
+    await this.redisService.set(cacheKey, formatted, this.CACHE_TTL);
 
-    return product;
+    return formatted;
   }
 
   /**
@@ -342,7 +363,12 @@ export class ProductsService {
     const cacheKey = `products:store:${storeId}:${page}:${limit}`;
 
     const cached = await this.redisService.get<any>(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      if (cached.data && Array.isArray(cached.data)) {
+        cached.data = cached.data.map((p) => this.formatProduct(p));
+      }
+      return cached;
+    }
 
     const [data, total] = await this.productRepository.findAndCount({
       where: { store_id: storeId },
@@ -354,9 +380,10 @@ export class ProductsService {
 
     // Regra de negócio #5: anexar preço promocional de campanha ativa ("Sextou")
     const dataWithPromos = await this.promotionsService.applyPromotionalPrices(data);
+    const formattedData = dataWithPromos.map((p) => this.formatProduct(p));
 
     const result = {
-      data: dataWithPromos,
+      data: formattedData,
       meta: {
         total,
         page,

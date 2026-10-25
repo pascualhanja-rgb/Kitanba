@@ -44,6 +44,15 @@ export class AuthService {
       throw new ConflictException('Email já está em uso');
     }
 
+    if (phone) {
+      const existingByPhone = await this.userRepository.findOne({
+        where: { phone },
+      });
+      if (existingByPhone) {
+        throw new ConflictException('Telefone já está em uso');
+      }
+    }
+
     const salt = await bcrypt.genSalt(12);
     const password_hash = await bcrypt.hash(password, salt);
 
@@ -70,11 +79,16 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto, ip?: string, userAgent?: string) {
-    const { email, password } = loginDto;
+    const { email, phone, password } = loginDto;
 
+    if (!email && !phone) {
+      throw new BadRequestException('Informe email ou telefone para entrar');
+    }
+
+    // Aceita login por email OU por telefone (mesma senha)
     const user = await this.userRepository.findOne({
-      where: { email },
-      select: ['id', 'name', 'email', 'password_hash', 'user_type'],
+      where: email ? { email } : { phone },
+      select: ['id', 'name', 'email', 'password_hash', 'user_type', 'phone'],
     });
 
     if (!user) {
@@ -94,6 +108,7 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         user_type: user.user_type,
       },
       ...tokens,

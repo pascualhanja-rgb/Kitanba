@@ -32,6 +32,11 @@ export class User {
   @Column({ type: 'varchar', length: 100, nullable: true })
   clerk_id: string | null;
 
+  /**
+   * Único entre utilizadores (login por telefone). Vários NULLs são permitidos
+   * (ver migration 1700000000003) para contas registadas sem telefone.
+   */
+  @Index({ unique: true })
   @Column({ type: 'varchar', length: 20, nullable: true })
   phone: string;
 

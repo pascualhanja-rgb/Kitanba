@@ -25,12 +25,20 @@ export class User {
   password_hash: string | null;
 
   /**
-   * ID do utilizador em contas externas (Clerk — Google, Apple, etc.).
-   * Nulo para contas criadas por email/senha.
+   * ID do utilizador na conta Google (o `sub` do ID Token nativo).
+   * Nulo para contas criadas por email/senha ou ligadas só à Apple.
    */
   @Index({ unique: true })
   @Column({ type: 'varchar', length: 100, nullable: true })
-  clerk_id: string | null;
+  google_id: string | null;
+
+  /**
+   * ID do utilizador na conta Apple (o `sub` do ID Token nativo).
+   * Preenchido quando a autenticação Apple for ativada.
+   */
+  @Index({ unique: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  apple_id: string | null;
 
   /**
    * Único entre utilizadores (login por telefone). Vários NULLs são permitidos

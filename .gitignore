@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 *.tsbuildinfo
+
+# Segredos de cliente (nunca commit)
+config/client_secret_*.json
+config/AuthKey_*.p8

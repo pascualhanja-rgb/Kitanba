@@ -1,6 +1,6 @@
-# 🛒 API — Login Social (Clerk) — App Cliente
+# 🛒 API — Login Social Nativo (Google / Apple) — App Cliente
 
-> Autenticação social com **Google** e **Apple** via Clerk. O frontend usa os componentes do Clerk (`<SignIn />`, botões Google/Apple) e envia o **token de sessão** para esta API, que valida, syncroniza o utilizador e devolve os tokens da aplicação (mesmo formato do `POST /auth/login`).
+> Autenticação social **direta** com **Google** e **Apple**, sem intermediários de terceiros (sem Clerk). O frontend Flutter (`kitanba_cliente`) usa os SDKs nativos (`google_sign_in` e `sign_in_with_apple`), obtém o **ID Token** no dispositivo e envia-o para esta API, que faz a **validação criptográfica** diretamente com o fornecedor (`google-auth-library` para o Google, JWKS público da Apple) e devolve os tokens da aplicação (mesmo formato do `POST /auth/login`).
 
 ---
 
@@ -9,14 +9,16 @@
 ```
 Frontend (App Cliente)
   └─ Usuário toca "Entrar com Google" (ou Apple)
-      └─ Clerk abre popup do Google/Apple e faz o login
-          └─ useAuth().getToken() → clerk_token
-              └─ Frontend envia POST /auth/social { clerk_token }
-                  └─ API valida o token no servidor, cria/liga o utilizador
+      └─ google_sign_in / sign_in_with_apple → ID Token nativo
+          └─ Frontend envia POST /auth/social { provider, token, user_type }
+              └─ API valida o token diretamente com a Google/Apple
+                  └─ cria/lia o utilizador
                       └─ API devolve access_token + refresh_token do Kitanda
 ```
 
-> ⚠️ O Google/Apple **não fala diretamente com esta API**. Tudo é mediado pelo Clerk no frontend; o backend só valida o token.
+> ✅ **Sem Clerk.** A validação é feita no servidor NestJS:
+> - **Google** — assinatura + audiência (`GOOGLE_CLIENT_ID_WEB` / `GOOGLE_CLIENT_ID_ANDROID`) via `google-auth-library`.
+> - **Apple** — assinatura + issuer + audiência (`APPLE_CLIENT_ID`) via JWKS público (`https://appleid.apple.com/auth/keys`).
 
 ---
 
@@ -26,21 +28,23 @@ Frontend (App Cliente)
 |-------|-------|
 | **Método** | `POST` |
 | **Endpoint** | `/auth/social` |
-| **Descrição do Contrato** | Valida o token de sessão do Clerk, cria o utilizador na primeira vez (ou liga à conta existente com o mesmo email) e devolve os tokens da aplicação. Para o **App Cliente**, enviar `user_type: "customer"` ou omitir (default). |
+| **Descrição do Contrato** | Valida o ID Token nativo diretamente com o fornecedor, cria o utilizador na primeira vez (ou liga à conta existente com o mesmo email) e devolve os tokens da aplicação. Para o **App Cliente**, enviar `user_type: "customer"` ou omitir (default). |
 | **Permissão** | 🌐 Pública (rate limit aplicado) |
 
 ### Payload (Request Body)
 
 ```json
 {
-  "clerk_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Imlu...",
+  "provider": "google",
+  "token": "eyJhbGciOiJSUzI1NiIs...",
   "user_type": "customer"
 }
 ```
 
 | Campo | Tipo | Obrigatório | Descrição |
 |-------|------|-------------|-----------|
-| `clerk_token` | string | ✅ | Token de sessão do Clerk (`useAuth().getToken()`) |
+| `provider` | string | ✅ | `"google"` ou `"apple"` |
+| `token` | string | ✅ | **ID Token** obtido nativamente no Flutter (`google_sign_in` ou `sign_in_with_apple`) |
 | `user_type` | string | ❌ | `customer` (default) ou `seller`. Não existe por aqui `admin` |
 
 ### Resposta / Status
@@ -54,24 +58,28 @@ Frontend (App Cliente)
     "name": "Maria Domingos",
     "email": "maria@gmail.com",
     "user_type": "customer",
-    "avatar_url": "https://img.clerk.com/..."
+    "avatar_url": "https://lh3.googleusercontent.com/..."
   },
   "access_token": "eyJhbGciOiJIUzI1NiIs...",
   "refresh_token": "eyJhbGciOiJIUzI1NiIs..."
 }
 ```
 
-> ✅ Na primeira vez o utilizador é criado com `is_email_verified: true` (confiado ao Clerk) e sem senha (`password_hash` nulo) — só entra por Google/Apple.
+> ✅ Na primeira vez o utilizador é criado com `is_email_verified: true` (email confiado ao Google/Apple — só entram depois de verificado no fornecedor) e sem senha (`password_hash` nulo) — só entra por Google/Apple.
+>
+> ℹ️ O ID social é guardado na tabela `users`: `google_id` (o `sub` do token do Google) ou `apple_id` (o `sub` do token da Apple). Nenhuma tabela nova foi criada.
 
 #### `401 Unauthorized`
 
 ```json
 {
   "statusCode": 401,
-  "message": "Token do Clerk inválido ou expirado",
+  "message": "Token do Google inválido ou expirado",
   "error": "Unauthorized"
 }
 ```
+
+> Também pode devolver `401` com `"Autenticação com Google/Apple não configurada no servidor"` se as variáveis de ambiente do fornecedor não estiverem preenchidas.
 
 #### `409 Conflict`
 
@@ -91,14 +99,15 @@ Frontend (App Cliente)
 |-------|-------|
 | **Método** | `POST` |
 | **Endpoint** | `/auth/social/link` |
-| **Descrição do Contrato** | Liga a conta social (Google/Apple) do token do Clerk à conta já autenticada. Depois disso, dá para entrar das duas formas (senha **ou** social). |
+| **Descrição do Contrato** | Liga a conta social (Google/Apple) do token nativo à conta já autenticada. Depois disso, dá para entrar das duas formas (senha **ou** social). |
 | **Permissão** | 🔒 Bearer Token |
 
 ### Payload (Request Body)
 
 ```json
 {
-  "clerk_token": "eyJhbGciOiJSUzI1NiIs..."
+  "provider": "google",
+  "token": "eyJhbGciOiJSUzI1NiIs..."
 }
 ```
 
@@ -109,7 +118,7 @@ Frontend (App Cliente)
 ```json
 {
   "message": "Conta social ligada com sucesso",
-  "clerk_provider_email": "maria@gmail.com"
+  "social_provider_email": "maria@gmail.com"
 }
 ```
 
@@ -131,7 +140,7 @@ Frontend (App Cliente)
 |-------|-------|
 | **Método** | `DELETE` |
 | **Endpoint** | `/auth/social/unlink` |
-| **Descrição do Contrato** | Remove a ligação com o Google/Apple. Só funciona se a conta tiver senha definida (senão ficaria sem forma de entrar). |
+| **Descrição do Contrato** | Remove a(s) ligação(ões) com o Google/Apple. Só funciona se a conta tiver senha definida (senão ficaria sem forma de entrar). |
 | **Permissão** | 🔒 Bearer Token |
 
 ### Resposta / Status
@@ -163,11 +172,12 @@ Frontend (App Cliente)
 - `access_token` expira em 15 min; renovar com `POST /auth/refresh` (ver [API-AUTH.md](API-AUTH.md)).
 - Logout com `POST /auth/logout` revoga os tokens normalmente.
 - Utilizadores do social entram direto como `customer`; upgrade para `seller` segue o fluxo normal do app.
+- O role de admin **nunca** pode ser atribuído por social (`user_type` só aceita `customer` e `seller`).
 
 ## Resumo — App Cliente
 
 | Endpoint | Método | Descrição |
 |----------|--------|-----------|
-| `/auth/social` | POST | Entrar/criar conta com Google ou Apple |
+| `/auth/social` | POST | Entrar/criar conta com Google ou Apple (token nativo) |
 | `/auth/social/link` | POST | Ligar social à conta atual (autenticado) |
 | `/auth/social/unlink` | DELETE | Desligar conta social (autenticado) |

@@ -16,9 +16,13 @@ import { User } from '../users/entities/user.entity.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
-import { ClerkAuthDto } from './dto/clerk-auth.dto.js';
+import { SocialAuthDto, SocialLinkDto } from './dto/social-auth.dto.js';
 import { RedisService } from '../common/redis/redis.service.js';
-import { ClerkAuthService, type ClerkProfile } from './clerk.service.js';
+import {
+  SocialAuthService,
+  type SocialProfile,
+  type SocialProvider,
+} from './social-auth.service.js';
 
 @Injectable()
 export class AuthService {
@@ -30,7 +34,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
-    private readonly clerkAuthService: ClerkAuthService,
+    private readonly socialAuthService: SocialAuthService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -116,35 +120,40 @@ export class AuthService {
   }
 
   /**
-   * Login/registro social via Clerk (Google ou Apple).
-   * Valida o token de sessão do Clerk, sincroniza o utilizador
-   * (por clerk_id ou email) e devolve os tokens da aplicação.
+   * Login/registro social nativo (Google ou Apple, sem Clerk).
+   * Valida o ID Token diretamente com o fornecedor, sincroniza o utilizador
+   * (por google_id/apple_id ou email) e devolve os tokens da aplicação.
    */
-  async clerkAuth(dto: ClerkAuthDto, ip?: string, userAgent?: string) {
-    const profile: ClerkProfile = await this.clerkAuthService.verifySessionToken(
-      dto.clerk_token,
+  async socialAuth(dto: SocialAuthDto, ip?: string, userAgent?: string) {
+    const profile: SocialProfile = await this.socialAuthService.verifyToken(
+      dto.provider,
+      dto.token,
     );
 
+    const socialField =
+      profile.provider === 'google' ? 'google_id' : 'apple_id';
+
     const found = await this.userRepository.findOne({
-      where: { clerk_id: profile.clerkId },
+      where: { [socialField]: profile.socialId } as any,
     });
 
     let user: User;
     if (found) {
       user = found;
     } else {
-      // Sem clerk_id: tentar ligar à conta existente com o mesmo email
+      // Sem ID social: tentar ligar à conta existente com o mesmo email
       const existingByEmail = await this.userRepository.findOne({
         where: { email: profile.email },
       });
 
       if (existingByEmail) {
-        if (existingByEmail.clerk_id && existingByEmail.clerk_id !== profile.clerkId) {
+        const linkedId = existingByEmail[socialField];
+        if (linkedId && linkedId !== profile.socialId) {
           throw new ConflictException(
             'Este email já está ligado a outra conta social. Faça login normalmente.',
           );
         }
-        existingByEmail.clerk_id = profile.clerkId;
+        existingByEmail[socialField] = profile.socialId;
         existingByEmail.avatar_url =
           existingByEmail.avatar_url ?? profile.avatarUrl;
         user = await this.userRepository.save(existingByEmail);
@@ -153,16 +162,20 @@ export class AuthService {
         const newUser = this.userRepository.create({
           name: profile.name,
           email: profile.email,
-          clerk_id: profile.clerkId,
           user_type: dto.user_type || 'customer',
           is_email_verified: true,
         });
+        newUser[socialField] = profile.socialId;
         if (profile.avatarUrl) {
           newUser.avatar_url = profile.avatarUrl;
         }
         user = await this.userRepository.save(newUser);
       }
     }
+
+    this.logger.log(
+      `Login social (${profile.provider}) ok para user ${user.id} (ip=${ip ?? '-'})`,
+    );
 
     const tokens = await this.generateTokens(user);
 
@@ -179,13 +192,20 @@ export class AuthService {
   }
 
   /**
-   * Liga uma conta Clerk (Google/Apple) ao utilizador autenticado atual,
+   * Liga uma conta social nativa (Google/Apple) ao utilizador autenticado atual,
    * permitindo depois login social na mesma conta.
    */
-  async linkClerkAccount(userId: string, clerkToken: string) {
-    const profile: ClerkProfile = await this.clerkAuthService.verifySessionToken(
-      clerkToken,
+  async linkSocialAccount(
+    userId: string,
+    provider: SocialProvider,
+    token: string,
+  ) {
+    const profile: SocialProfile = await this.socialAuthService.verifyToken(
+      provider,
+      token,
     );
+
+    const socialField = provider === 'google' ? 'google_id' : 'apple_id';
 
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
@@ -193,34 +213,34 @@ export class AuthService {
     }
 
     const takenByOther = await this.userRepository.findOne({
-      where: { clerk_id: profile.clerkId },
+      where: { [socialField]: profile.socialId } as any,
     });
     if (takenByOther && takenByOther.id !== userId) {
       throw new ConflictException('Esta conta social já está ligada a outro utilizador');
     }
 
-    user.clerk_id = profile.clerkId;
+    user[socialField] = profile.socialId;
     user.avatar_url = user.avatar_url ?? profile.avatarUrl;
     user.is_email_verified = true;
     await this.userRepository.save(user);
 
     return {
       message: 'Conta social ligada com sucesso',
-      clerk_provider_email: profile.email,
+      social_provider_email: profile.email,
     };
   }
 
   /**
-   * Desliga a conta social (Clerk) do utilizador autenticado.
+   * Desliga a(s) conta(s) social(is) (Google/Apple) do utilizador autenticado.
    * Só é possível se a conta tiver senha definida (não ficar sem login possível).
    */
-  async unlinkClerkAccount(userId: string) {
+  async unlinkSocialAccount(userId: string) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('Utilizador não encontrado');
     }
 
-    if (!user.clerk_id) {
+    if (!user.google_id && !user.apple_id) {
       throw new BadRequestException('A conta não está ligada a nenhuma conta social');
     }
 
@@ -230,7 +250,8 @@ export class AuthService {
       );
     }
 
-    user.clerk_id = null;
+    user.google_id = null;
+    user.apple_id = null;
     await this.userRepository.save(user);
 
     return { message: 'Conta social desligada com sucesso' };
@@ -247,7 +268,7 @@ export class AuthService {
       user.password_hash &&
       (await bcrypt.compare(pass, user.password_hash))
     ) {
-      const { password_hash, clerk_id, ...result } = user;
+      const { password_hash, google_id, apple_id, ...result } = user;
       return result;
     }
     return null;

@@ -10,7 +10,7 @@ Documento de referência para o time **cliente (frontend/aplicativo)** sobre com
 |---|---|
 | **Email + senha** | Login tradicional |
 | **Telefone + senha** | Login pelo número de telefone cadastrado ✅ **NOVO** |
-| **Google / Apple (Clerk)** | Login social com 1 clique |
+| **Google / Apple (nativo)** | Login social com 1 clique |
 | **OTP (código de 6 dígitos)** | Ativação de conta e reset de senha |
 
 Após qualquer forma de login, a API devolve:
@@ -145,11 +145,13 @@ O código tem **exatamente 6 dígitos**.
 
 ---
 
-## 🌍 7. Login social (Google / Apple via Clerk)
+## 🌍 7. Login social (Google / Apple — nativo, sem Clerk)
 
-- `POST /auth/social` — recebe `{"clerk_token": "...", "user_type": "customer"}` do frontend, valida no Clerk e devolve os mesmos tokens da aplicação. Cria a conta automaticamente no primeiro acesso.
-- `POST /auth/social/link` *(autenticado)* — liga Google/Apple à conta atual.
+- `POST /auth/social` — recebe `{"provider": "google", "token": "<ID Token nativo>", "user_type": "customer"}` do frontend. O backend valida o token diretamente com a Google (`google-auth-library`) ou Apple (JWKS), cria/lia a conta e devolve os mesmos tokens da aplicação. Detalhes em [docs/SOCIAL-CLIENTE.md](docs/SOCIAL-CLIENTE.md) e [docs/SOCIAL-VENDEDOR.md](docs/SOCIAL-VENDEDOR.md).
+- `POST /auth/social/link` *(autenticado)* — liga Google/Apple à conta atual (`provider` + `token`).
 - `DELETE /auth/social/unlink` *(autenticado)* — desliga a conta social (só se houver senha definida).
+
+> ℹ️ Na app Flutter o token vem dos SDKs nativos (`google_sign_in`, `sign_in_with_apple`); nenhum serviço de terceiros é usado para autenticação.
 
 ---
 

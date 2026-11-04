@@ -43,6 +43,20 @@ export class ProductsController {
   @ApiQuery({ name: 'categoryId', required: false })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'storeId', required: false })
+  @ApiQuery({
+    name: 'product_type',
+    required: false,
+    enum: ['physical', 'rental', 'food', 'service'],
+  })
+  @ApiQuery({
+    name: 'condition_type',
+    required: false,
+    enum: ['new', 'used', 'refurbished'],
+  })
+  @ApiQuery({ name: 'rental_period_type', required: false })
+  @ApiQuery({ name: 'requires_towing', required: false, type: Boolean })
+  @ApiQuery({ name: 'min_price', required: false, type: Number })
+  @ApiQuery({ name: 'max_price', required: false, type: Number })
   @ApiResponse({ status: 200, description: 'Lista de produtos' })
   async findAll(
     @Query('page') page?: number,
@@ -50,14 +64,36 @@ export class ProductsController {
     @Query('categoryId') categoryId?: number,
     @Query('search') search?: string,
     @Query('storeId') storeId?: string,
+    @Query('product_type') productType?: string,
+    @Query('condition_type') conditionType?: string,
+    @Query('rental_period_type') rentalPeriodType?: string,
+    @Query('requires_towing') requiresTowing?: string,
+    @Query('min_price') minPrice?: number,
+    @Query('max_price') maxPrice?: number,
   ) {
-    return this.productsService.findAll(
-      page || 1,
-      limit || 20,
-      categoryId,
+    return this.productsService.findAll(page ? Number(page) : 1, limit ? Number(limit) : 20, {
+      categoryId: categoryId ? Number(categoryId) : undefined,
       search,
       storeId,
-    );
+      product_type: productType,
+      condition_type: conditionType,
+      rental_period_type: rentalPeriodType,
+      requires_towing:
+        requiresTowing === undefined
+          ? undefined
+          : requiresTowing === 'true' || requiresTowing === '1',
+      min_price: minPrice !== undefined ? Number(minPrice) : undefined,
+      max_price: maxPrice !== undefined ? Number(maxPrice) : undefined,
+    });
+  }
+
+  @Get('admin/summary')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Resumo do catálogo por tipo/condição (Admin)' })
+  async adminSummary() {
+    return this.productsService.catalogSummary();
   }
 
   @Get('store/:storeId')

@@ -70,4 +70,26 @@ export class RealtimeService {
 
     this.io.to(`chat:${roomId}`).emit('chat:read', payload);
   }
+
+  /**
+   * Chamadas in-app — convite de chamada para a sala pessoal do destinatário
+   */
+  emitCallRinging(userId: string, payload: any) {
+    if (!this.io) return;
+
+    this.io.to(`user:${userId}`).emit('call:ringing', payload);
+  }
+
+  /**
+   * Chamadas in-app — atualização de estado (answered/rejected/ended/missed)
+   */
+  emitCallStatus(userId: string, event: string, payload: any) {
+    if (!this.io) return;
+
+    this.io.to(`user:${userId}`).emit(event, payload);
+
+    if (payload?.call_id) {
+      this.io.to(`call:${payload.call_id}`).emit(event, payload);
+    }
+  }
 }

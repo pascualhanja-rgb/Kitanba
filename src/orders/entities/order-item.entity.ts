@@ -17,6 +17,12 @@ export class OrderItem {
   @Column({ type: 'uuid', nullable: true })
   product_id: string | null;
 
+  @Column({ type: 'uuid', nullable: true })
+  variant_id: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  special_instructions: string | null;
+
   @Column({ type: 'int' })
   quantity: number;
 
@@ -34,4 +40,8 @@ export class OrderItem {
   @ManyToOne('Product', { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'product_id' })
   product: any;
+
+  @ManyToOne('ProductVariant', { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'variant_id' })
+  variant: any;
 }

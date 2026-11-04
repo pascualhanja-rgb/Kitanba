@@ -8,6 +8,7 @@ import { DeliveryTrackingLog } from './entities/delivery-tracking-log.entity.js'
 import { Order } from '../orders/entities/order.entity.js';
 import { Store } from '../stores/entities/store.entity.js';
 import { User } from '../users/entities/user.entity.js';
+import { CallLog } from '../calls/entities/call-log.entity.js';
 import { TrackingGateway } from './realtime/tracking.gateway.js';
 import { RealtimeService } from './realtime/realtime.service.js';
 import { InvoicesModule } from '../invoices/invoices.module.js';
@@ -15,7 +16,14 @@ import { ChatModule } from '../chat/chat.module.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Delivery, DeliveryTrackingLog, Order, Store, User]),
+    TypeOrmModule.forFeature([
+      Delivery,
+      DeliveryTrackingLog,
+      Order,
+      Store,
+      User,
+      CallLog,
+    ]),
     InvoicesModule,
     forwardRef(() => ChatModule),
   ],

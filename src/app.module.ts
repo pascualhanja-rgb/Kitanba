@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 
 import { AuthModule } from './auth/auth.module.js';
@@ -24,6 +25,15 @@ import { LivesModule } from './lives/lives.module.js';
 import { AffiliatesModule } from './affiliates/affiliates.module.js';
 import { RedisModule } from './common/redis/redis.module.js';
 import { UploadModule } from './common/upload/upload.module.js';
+
+// Fase 3
+import { CartModule } from './cart/cart.module.js';
+import { RentalsModule } from './rentals/rentals.module.js';
+import { ServicesModule } from './services/services.module.js';
+import { BookingsModule } from './bookings/bookings.module.js';
+import { RealEstateModule } from './real-estate/real-estate.module.js';
+import { InstallmentsModule } from './installments/installments.module.js';
+import { CallsModule } from './calls/calls.module.js';
 
 import { ThrottlerGuardImpl } from './common/guards/throttler.guard.js';
 
@@ -63,6 +73,18 @@ import { LiveStream } from './lives/entities/live-stream.entity.js';
 import { LiveComment } from './lives/entities/live-comment.entity.js';
 import { StoreAffiliate } from './affiliates/entities/store-affiliate.entity.js';
 
+// Fase 3 — entidades
+import { ProductVariant } from './products/entities/product-variant.entity.js';
+import { Cart } from './cart/entities/cart.entity.js';
+import { CartItem } from './cart/entities/cart-item.entity.js';
+import { Rental } from './rentals/entities/rental.entity.js';
+import { ServiceDetail } from './services/entities/service-detail.entity.js';
+import { StoreServiceSchedule } from './services/entities/store-service-schedule.entity.js';
+import { ServiceBooking } from './bookings/entities/service-booking.entity.js';
+import { RealEstateDetail } from './real-estate/entities/real-estate-detail.entity.js';
+import { Installment } from './installments/entities/installment.entity.js';
+import { CallLog } from './calls/entities/call-log.entity.js';
+
 @Module({
   imports: [
     // Configuração de variáveis de ambiente
@@ -100,11 +122,23 @@ import { StoreAffiliate } from './affiliates/entities/store-affiliate.entity.js'
           PromotionalCampaign, CampaignProduct,
           LiveStream, LiveComment,
           StoreAffiliate,
+          // Fase 3
+          ProductVariant,
+          Cart, CartItem,
+          Rental,
+          ServiceDetail, StoreServiceSchedule,
+          ServiceBooking,
+          RealEstateDetail,
+          Installment,
+          CallLog,
         ],
         synchronize: false,
         logging: configService.get<string>('NODE_ENV') !== 'production',
       }),
     }),
+
+    // Agendamentos (jobs de overdue de alugueres, parcelas e chamadas)
+    ScheduleModule.forRoot(),
 
     // Rate Limiting Global
     // 20 req/min por IP real (com trust proxy ativo no main.ts, o IP
@@ -137,6 +171,14 @@ import { StoreAffiliate } from './affiliates/entities/store-affiliate.entity.js'
     PromotionsModule,
     LivesModule,
     AffiliatesModule,
+    // Fase 3
+    CartModule,
+    RentalsModule,
+    ServicesModule,
+    BookingsModule,
+    RealEstateModule,
+    InstallmentsModule,
+    CallsModule,
   ],
   providers: [
     {

@@ -6,6 +6,7 @@ import { OrdersService } from './orders.service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { Product } from '../products/entities/product.entity.js';
+import { ProductVariant } from '../products/entities/product-variant.entity.js';
 import { Store } from '../stores/entities/store.entity.js';
 import { CampaignProduct } from '../promotions/entities/campaign-product.entity.js';
 import { Delivery } from '../deliveries/entities/delivery.entity.js';
@@ -17,6 +18,7 @@ import { RedisModule } from '../common/redis/redis.module.js';
       Order,
       OrderItem,
       Product,
+      ProductVariant,
       Store,
       CampaignProduct,
       Delivery,

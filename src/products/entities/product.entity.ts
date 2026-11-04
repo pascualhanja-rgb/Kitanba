@@ -41,6 +41,30 @@ export class Product {
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 
+  // ---------------------------------------------------------------------------
+  // Fase 3 — catálogo modular
+  // ---------------------------------------------------------------------------
+
+  /** physical | rental | food | service */
+  @Column({ type: 'varchar', length: 30, default: 'physical' })
+  product_type: string;
+
+  /** hourly | daily | monthly (apenas para product_type = 'rental') */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  rental_period_type: string | null;
+
+  /** Caução devolvida após a devolução sem danos */
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0.0 })
+  security_deposit: number;
+
+  /** new | used | refurbished */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  condition_type: string | null;
+
+  /** Apenas veículos/equipamentos que exigem reboque */
+  @Column({ type: 'boolean', default: false })
+  requires_towing: boolean;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 
@@ -58,6 +82,11 @@ export class Product {
 
   @OneToMany('ProductAttributeValue', (val: any) => val.product, { cascade: true })
   attribute_values: any[];
+
+  @OneToMany('ProductVariant', (variant: any) => variant.product, {
+    cascade: true,
+  })
+  variants: any[];
 
   @OneToMany('Advertisement', (ad: any) => ad.product)
   advertisements: any[];

@@ -11,6 +11,7 @@ import { Repository, In, DataSource } from 'typeorm';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
 import { Product } from '../products/entities/product.entity.js';
+import { ProductVariant } from '../products/entities/product-variant.entity.js';
 import { Store } from '../stores/entities/store.entity.js';
 import { CampaignProduct } from '../promotions/entities/campaign-product.entity.js';
 import { PromotionalCampaign } from '../promotions/entities/promotional-campaign.entity.js';
@@ -29,6 +30,8 @@ export class OrdersService {
     private readonly orderItemRepository: Repository<OrderItem>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @InjectRepository(ProductVariant)
+    private readonly variantRepository: Repository<ProductVariant>,
     @InjectRepository(Store)
     private readonly storeRepository: Repository<Store>,
     @InjectRepository(CampaignProduct)
@@ -128,6 +131,19 @@ export class OrdersService {
 
     const productMap = new Map(products.map((p) => [p.id, p]));
 
+    // 2.1 Carregar variantes pedidas (validação de pertença/estoque)
+    const variantIds = items
+      .map((item) => item.variant_id)
+      .filter((id): id is string => !!id);
+
+    const variants = variantIds.length
+      ? await this.variantRepository.find({
+          where: { id: In(variantIds) },
+        })
+      : [];
+
+    const variantMap = new Map(variants.map((variant) => [variant.id, variant]));
+
     // 3. Preços promocionais ativos
     const promoPrices = await this.getActivePromotionalPrice(productIds);
 
@@ -139,34 +155,81 @@ export class OrdersService {
       for (const item of items) {
         const product = productMap.get(item.product_id)!;
 
-        if (product.stock_quantity < item.quantity) {
+        // Fase 3: alugueres e serviços têm fluxos próprios
+        if (product.product_type === 'rental' || product.product_type === 'service') {
           throw new BadRequestException(
-            `Estoque insuficiente para o produto: ${product.title}`,
+            'Produto do tipo rental/service não pode ser comprado no checkout. Use /rentals ou /service-bookings',
           );
         }
 
-        // Preço promocional tem prioridade sobre o preço normal
-        const unitPrice = promoPrices.get(product.id) ?? Number(product.price);
+        // Variante (tamanho/cor/adicional) — deve ser ativa e do produto
+        let variant: ProductVariant | null = null;
+        if (item.variant_id) {
+          variant = variantMap.get(item.variant_id) ?? null;
 
-        const totalPrice = unitPrice * item.quantity;
+          if (!variant || variant.product_id !== product.id) {
+            throw new BadRequestException(
+              'Variante não pertence a este produto',
+            );
+          }
+
+          if (!variant.is_active) {
+            throw new BadRequestException('Variante indisponível');
+          }
+        }
+
+        // Com variante, o estoque vendável é o da variante
+        const availableStock = variant
+          ? Number(variant.stock_quantity)
+          : Number(product.stock_quantity);
+
+        if (availableStock < item.quantity) {
+          throw new BadRequestException(
+            variant
+              ? `Estoque insuficiente para a variante: ${variant.name}`
+              : `Estoque insuficiente para o produto: ${product.title}`,
+          );
+        }
+
+        // Preço promocional tem prioridade; adicional da variante é somado
+        const basePrice =
+          promoPrices.get(product.id) ?? Number(product.price);
+        const unitPrice = Number(
+          (basePrice + Number(variant?.additional_price ?? 0)).toFixed(2),
+        );
+
+        const totalPrice = Number((unitPrice * item.quantity).toFixed(2));
         subtotal += totalPrice;
 
         orderItems.push(
           this.orderItemRepository.create({
             product_id: product.id,
+            variant_id: variant?.id ?? null,
+            special_instructions: item.special_instructions || null,
             quantity: item.quantity,
             unit_price: unitPrice,
             total_price: totalPrice,
           }),
         );
 
-        // Baixar estoque
-        await manager
-          .createQueryBuilder()
-          .update(Product)
-          .set({ stock_quantity: () => `stock_quantity - ${item.quantity}` })
-          .where('id = :id', { id: product.id })
-          .execute();
+        // Baixar estoque (variante quando existir, senão o produto)
+        if (variant) {
+          await manager
+            .createQueryBuilder()
+            .update(ProductVariant)
+            .set({
+              stock_quantity: () => `stock_quantity - ${item.quantity}`,
+            })
+            .where('id = :id', { id: variant.id })
+            .execute();
+        } else {
+          await manager
+            .createQueryBuilder()
+            .update(Product)
+            .set({ stock_quantity: () => `stock_quantity - ${item.quantity}` })
+            .where('id = :id', { id: product.id })
+            .execute();
+        }
       }
 
       // Frete: usa shipping_cost do produto quando 'paid'
@@ -205,7 +268,12 @@ export class OrdersService {
 
       return {
         ...savedOrder,
-        items: orderItems,
+        items: orderItems.map((item) => ({
+          ...item,
+          variant_name: item.variant_id
+            ? variantMap.get(item.variant_id)?.name ?? null
+            : null,
+        })),
       };
     });
   }

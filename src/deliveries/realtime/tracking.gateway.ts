@@ -12,6 +12,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { User } from '../../users/entities/user.entity.js';
+import { CallLog } from '../../calls/entities/call-log.entity.js';
 import { RealtimeService } from './realtime.service.js';
 import { ChatService } from '../../chat/chat.service.js';
 
@@ -34,6 +35,8 @@ export class TrackingGateway
     private readonly realtimeService: RealtimeService,
     @Inject(forwardRef(() => ChatService))
     private readonly chatService: ChatService,
+    @InjectRepository(CallLog)
+    private readonly callLogRepository: Repository<CallLog>,
   ) {}
 
   afterInit() {
@@ -165,5 +168,73 @@ export class TrackingGateway
   handleChatUnsubscribe(client: Socket, roomId: string) {
     client.leave(`chat:${roomId}`);
     return { event: 'unsubscribed', data: { room: `chat:${roomId}` } };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chamadas in-app (WebRTC) — apenas relay de sinalização
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Entrar na sala privada da chamada (só os 2 participantes)
+   */
+  @SubscribeMessage('call:subscribe')
+  async handleCallSubscribe(client: Socket, payload: { call_id: string }) {
+    const user = (client as any).data.user;
+    if (!user) return { event: 'error', data: { message: 'Não autenticado' } };
+
+    if (!payload?.call_id) {
+      return { event: 'error', data: { message: 'call_id obrigatório' } };
+    }
+
+    const call = await this.callLogRepository.findOne({
+      where: { id: payload.call_id },
+    });
+
+    if (!call) {
+      return { event: 'error', data: { message: 'Chamada não encontrada' } };
+    }
+
+    if (call.caller_id !== user.id && call.receiver_id !== user.id) {
+      this.logger.warn(
+        `call:subscribe negado para ${user.id} na chamada ${call.id}`,
+      );
+      return { event: 'error', data: { message: 'Sem permissão' } };
+    }
+
+    client.join(`call:${call.id}`);
+
+    return {
+      event: 'subscribed',
+      data: { room: `call:${call.id}`, call_id: call.id },
+    };
+  }
+
+  @SubscribeMessage('call:offer')
+  handleCallOffer(client: Socket, payload: { call_id: string; sdp: any }) {
+    client.to(`call:${payload.call_id}`).emit('call:offer', payload);
+    return { event: 'relayed', data: { call_id: payload.call_id } };
+  }
+
+  @SubscribeMessage('call:answer')
+  handleCallAnswer(client: Socket, payload: { call_id: string; sdp: any }) {
+    client.to(`call:${payload.call_id}`).emit('call:answer', payload);
+    return { event: 'relayed', data: { call_id: payload.call_id } };
+  }
+
+  @SubscribeMessage('call:ice-candidate')
+  handleCallIceCandidate(
+    client: Socket,
+    payload: { call_id: string; candidate: any },
+  ) {
+    client
+      .to(`call:${payload.call_id}`)
+      .emit('call:ice-candidate', payload);
+    return { event: 'relayed', data: { call_id: payload.call_id } };
+  }
+
+  @SubscribeMessage('call:end-signal')
+  handleCallEndSignal(client: Socket, payload: { call_id: string }) {
+    client.to(`call:${payload.call_id}`).emit('call:end-signal', payload);
+    return { event: 'relayed', data: { call_id: payload.call_id } };
   }
 }

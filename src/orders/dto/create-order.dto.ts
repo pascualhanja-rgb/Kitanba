@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsNumber,
+  MaxLength,
   Min,
   IsLatitude,
   IsLongitude,
@@ -17,6 +18,20 @@ export class OrderItemDto {
   @ApiProperty({ example: '3f8a9c1e-6b7d-4e2f-9a0b-1c2d3e4f5a6b' })
   @IsUUID()
   product_id: string;
+
+  @ApiPropertyOptional({
+    example: 'uuid-variante',
+    description: 'Variante ativa do produto (tamanho/cor/adicional)',
+  })
+  @IsOptional()
+  @IsUUID()
+  variant_id?: string;
+
+  @ApiPropertyOptional({ example: 'Sem cebola' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  special_instructions?: string;
 
   @ApiProperty({ example: 2, minimum: 1 })
   @IsNumber()

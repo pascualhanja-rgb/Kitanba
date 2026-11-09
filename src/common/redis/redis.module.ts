@@ -14,18 +14,28 @@ const Redis = require('ioredis') as typeof import('ioredis').Redis;
       provide: 'REDIS_CLIENT',
       inject: [ConfigService],
       useFactory: (configService: ConfigService): InstanceType<typeof Redis> => {
+        const redisUrl = configService.get<string>('REDIS_URL');
+        const options = {
+          keyPrefix: configService.get<string>('REDIS_KEY_PREFIX', 'kitanda:'),
+          maxRetriesPerRequest: 2,
+          connectTimeout: 5_000,
+          retryStrategy(times: number) {
+            return Math.min(times * 50, 2000);
+          },
+          lazyConnect: true,
+        };
+
+        // Render/Neon-style managed Redis fornece uma connection string
+        if (redisUrl) {
+          return new Redis(redisUrl, options);
+        }
+
         return new Redis({
+          ...options,
           host: configService.get<string>('REDIS_HOST', 'localhost'),
           port: configService.get<number>('REDIS_PORT', 6379),
           password: configService.get<string>('REDIS_PASSWORD') || undefined,
           db: configService.get<number>('REDIS_DB', 0),
-          keyPrefix: configService.get<string>('REDIS_KEY_PREFIX', 'kitanda:'),
-          maxRetriesPerRequest: 3,
-          retryStrategy(times: number) {
-            const delay = Math.min(times * 50, 2000);
-            return delay;
-          },
-          lazyConnect: true,
         });
       },
     },

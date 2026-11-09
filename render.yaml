@@ -1,0 +1,113 @@
+# ============================================================================
+# Kitanda API — Render Blueprint
+# ============================================================================
+# Deploy: Render Dashboard > New > Blueprint > selecionar este repositório.
+# Os segredos marcados com `sync: false` são preenchidos no dashboard.
+# Ver docs/DEPLOY-RENDER.md para o passo-a-passo completo.
+# ============================================================================
+
+services:
+  - type: web
+    name: kitanda-api
+    runtime: node
+    plan: standard         # 2GB / 1 CPU. Baixe para starter (512MB) para testes.
+    region: frankfurt
+    branch: main
+    buildCommand: npm ci --legacy-peer-deps --include=dev && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /health
+    preDeployCommand: npm run db:migrate
+    autoDeploy: true
+    numInstances: 1        # >1 exige o adapter Redis do Socket.IO (ver docs)
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.23.4
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=1536
+
+      # --- Base de dados (Neon / Postgres gerido) ---
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: DB_POOL_MAX
+        value: "10"
+
+      # --- Cache / sessões / brute-force ---
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: kitanda-redis
+          property: connectionString
+      - key: REDIS_KEY_PREFIX
+        value: "kitanda:"
+
+      # --- Autenticação ---
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: MAX_LOGIN_ATTEMPTS
+        value: "5"
+      - key: LOGIN_LOCKOUT_MINUTES
+        value: "15"
+
+      # --- URLs / CORS (lista separada por vírgulas) ---
+      - key: APP_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+
+      # --- Rate limiting (por IP, por minuto) ---
+      - key: THROTTLE_TTL
+        value: "60"
+      - key: THROTTLE_LIMIT
+        value: "300"
+
+      # --- Email transacional (Brevo) ---
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_FROM
+        sync: false
+      - key: APP_NAME
+        value: Kitanda
+
+      # --- Uploads: Cloudinary ---
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+      # --- Uploads: Cloudflare R2 ---
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_PUBLIC_DOMAIN
+        sync: false
+
+      # --- Login social nativo (Google) ---
+      - key: GOOGLE_CLIENT_ID_WEB
+        sync: false
+      - key: GOOGLE_CLIENT_ID_ANDROID
+        sync: false
+
+  # --------------------------------------------------------------------------
+  # Redis gerido (cache, rate limit, blacklist de tokens, contadores)
+  # --------------------------------------------------------------------------
+  - type: redis
+    name: kitanda-redis
+    plan: starter
+    region: frankfurt
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []        # vazio = apenas ligações internas do Render

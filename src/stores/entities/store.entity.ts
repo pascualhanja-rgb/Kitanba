@@ -9,6 +9,10 @@ import {
   JoinColumn,
 } from 'typeorm';
 
+import { ProviderSpecialty } from '../../professional-specialties/entities/provider-specialty.entity.js';
+import { ProviderPortfolioItem } from '../../professional-specialties/entities/provider-portfolio-item.entity.js';
+import { ServiceQuoteRequest } from '../../professional-specialties/entities/service-quote-request.entity.js';
+
 @Entity('stores')
 export class Store {
   @PrimaryGeneratedColumn('uuid')
@@ -125,4 +129,13 @@ export class Store {
 
   @OneToOne('StoreBillingProfile', (profile: any) => profile.store)
   billing_profile: any;
+
+  @OneToMany('ProviderSpecialty', (ps: any) => ps.store)
+  providerSpecialties: any[];
+
+  @OneToMany('ProviderPortfolioItem', (item: any) => item.store)
+  portfolioItems: any[];
+
+  @OneToMany('ServiceQuoteRequest', (quote: any) => quote.store)
+  quoteRequests: any[];
 }

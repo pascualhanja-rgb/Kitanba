@@ -25,6 +25,7 @@ import { LivesModule } from './lives/lives.module.js';
 import { AffiliatesModule } from './affiliates/affiliates.module.js';
 import { RedisModule } from './common/redis/redis.module.js';
 import { UploadModule } from './common/upload/upload.module.js';
+import { HealthModule } from './common/health/health.module.js';
 
 // Fase 3
 import { CartModule } from './cart/cart.module.js';
@@ -85,6 +86,19 @@ import { RealEstateDetail } from './real-estate/entities/real-estate-detail.enti
 import { Installment } from './installments/entities/installment.entity.js';
 import { CallLog } from './calls/entities/call-log.entity.js';
 
+// Novos recursos de serviços profissionais
+import { ProfessionalSpecialty } from './professional-specialties/entities/professional-specialty.entity.js';
+import { ProviderSpecialty } from './professional-specialties/entities/provider-specialty.entity.js';
+import { ProviderPortfolioItem } from './professional-specialties/entities/provider-portfolio-item.entity.js';
+import { ServiceQuoteRequest } from './professional-specialties/entities/service-quote-request.entity.js';
+
+// Novos recursos de serviços profissionais — módulos
+import { ProfessionalSpecialtiesModule } from './professional-specialties/professional-specialties.module.js';
+import { ProfessionalSpecialtiesStoreModule } from './professional-specialties/professional-specialties-store.module.js';
+import { ProfessionalSpecialtiesPublicModule } from './professional-specialties/professional-specialties-public.module.js';
+import { ServiceQuoteRequestsClientModule } from './professional-specialties/service-quote-requests-client.module.js';
+import { ProfessionalSpecialtiesVendorModule } from './professional-specialties/professional-specialties-vendor.module.js';
+
 @Module({
   imports: [
     // Configuração de variáveis de ambiente
@@ -97,17 +111,16 @@ import { CallLog } from './calls/entities/call-log.entity.js';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres' as const,
-        host: configService.get<string>('DB_HOST', 'localhost'),
-        port: configService.get<number>('DB_PORT', 5432),
-        username: configService.get<string>('DB_USERNAME', 'postgres'),
-        password: configService.get<string>('DB_PASSWORD', ''),
-        database: configService.get<string>('DB_DATABASE', 'kitanda'),
-        ssl: configService.get<string>('DB_HOST', 'localhost') !== 'localhost'
-          ? { rejectUnauthorized: false }
-          : false,
-        entities: [
+      useFactory: (configService: ConfigService) => {
+        const databaseUrl = configService.get<string>('DATABASE_URL');
+        const host = configService.get<string>('DB_HOST', 'localhost');
+        const sslEnabled =
+          configService.get<string>('DB_SSL') === 'true' ||
+          (!databaseUrl && host !== 'localhost' && host !== '127.0.0.1');
+
+        const poolMax = Number(configService.get<string>('DB_POOL_MAX', '10'));
+        const shared = {
+          entities: [
           User, UserOtp, CustomerPasswordReset, FailedLoginAttempt,
           Store, SellerPlan, PlanUpgradeRequest,
           SellerPlanChange, StoreSubscriptionPayment, StoreStatusLog,
@@ -131,22 +144,58 @@ import { CallLog } from './calls/entities/call-log.entity.js';
           RealEstateDetail,
           Installment,
           CallLog,
-        ],
-        synchronize: false,
-        logging: configService.get<string>('NODE_ENV') !== 'production',
-      }),
+          // Serviços profissionais
+          ProfessionalSpecialty, ProviderSpecialty,
+            ProviderPortfolioItem, ServiceQuoteRequest,
+          ],
+          synchronize: false,
+          logging: configService.get<string>('NODE_ENV') !== 'production',
+          ssl: sslEnabled ? { rejectUnauthorized: false } : false,
+          // Pool dimensionado por instância. Neon: manter abaixo do limite do plano.
+          extra: {
+            max: Number.isFinite(poolMax) && poolMax > 0 ? poolMax : 10,
+            min: 2,
+            idleTimeoutMillis: 30_000,
+            connectionTimeoutMillis: 10_000,
+            statement_timeout: 30_000,
+            application_name: 'kitanda-api',
+          },
+          // Resiliência no arranque (Neon acorda em cold start)
+          retryAttempts: 10,
+          retryDelay: 3_000,
+        };
+
+        return databaseUrl
+          ? { type: 'postgres' as const, url: databaseUrl, ...shared }
+          : {
+              type: 'postgres' as const,
+              host,
+              port: configService.get<number>('DB_PORT', 5432),
+              username: configService.get<string>('DB_USERNAME', 'postgres'),
+              password: configService.get<string>('DB_PASSWORD', ''),
+              database: configService.get<string>('DB_DATABASE', 'kitanda'),
+              ...shared,
+            };
+      },
     }),
 
     // Agendamentos (jobs de overdue de alugueres, parcelas e chamadas)
     ScheduleModule.forRoot(),
 
-    // Rate Limiting Global
-    // 20 req/min por IP real (com trust proxy ativo no main.ts, o IP
-    // respeita X-Forwarded-For atrás do proxy do Render)
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 20,
-    }]),
+    // Rate Limiting Global (por IP real — trust proxy ativo no main.ts)
+    // Limite configurável: default 300 req/min por IP, adequado a milhares de
+    // utilizadores atrás de NAT móvel. Rotas sensíveis têm limites mais baixos.
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => [
+        {
+          ttl:
+            Number(configService.get<string>('THROTTLE_TTL', '60')) * 1000,
+          limit: Number(configService.get<string>('THROTTLE_LIMIT', '300')),
+        },
+      ],
+    }),
 
     // Redis Cache
     RedisModule,
@@ -165,6 +214,7 @@ import { CallLog } from './calls/entities/call-log.entity.js';
     OtpsModule,
     ChatModule,
     UploadModule,
+    HealthModule,
     OrdersModule,
     DeliveriesModule,
     InvoicesModule,
@@ -179,6 +229,12 @@ import { CallLog } from './calls/entities/call-log.entity.js';
     RealEstateModule,
     InstallmentsModule,
     CallsModule,
+    // Novos recursos de serviços profissionais
+    ProfessionalSpecialtiesModule,
+    ProfessionalSpecialtiesStoreModule,
+    ProfessionalSpecialtiesPublicModule,
+    ServiceQuoteRequestsClientModule,
+    ProfessionalSpecialtiesVendorModule,
   ],
   providers: [
     {

@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================================================
 -- 2. UTILIZADORES E AUTENTICAÇÃO
 -- ============================================================================
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
@@ -17,8 +17,8 @@ CREATE TABLE users (
     is_email_verified BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-//Este banco de dados 
-CREATE TABLE user_otps (
+-- Nota: schema base do banco de dados 
+CREATE TABLE IF NOT EXISTS user_otps (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     otp_code VARCHAR(6) NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE user_otps (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP  
 );
 
-CREATE TABLE customer_password_resets (
+CREATE TABLE IF NOT EXISTS customer_password_resets (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token VARCHAR(255) NOT NULL,
@@ -38,7 +38,7 @@ CREATE TABLE customer_password_resets (
 );
 
 -- Failed login tracking for brute force protection
-CREATE TABLE failed_login_attempts (
+CREATE TABLE IF NOT EXISTS failed_login_attempts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     email_attempted VARCHAR(150) NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE failed_login_attempts (
 -- ============================================================================
 -- 3. PLANOS DE MENSALIDADE E LOJAS (GERIDOS PELO ADMIN)
 -- ============================================================================
-CREATE TABLE seller_plans (
+CREATE TABLE IF NOT EXISTS seller_plans (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
     tier VARCHAR(20) UNIQUE NOT NULL CHECK (tier IN ('normal', 'black', 'premium')),
@@ -63,7 +63,7 @@ CREATE TABLE seller_plans (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE stores (
+CREATE TABLE IF NOT EXISTS stores (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     owner_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     plan_id INT NOT NULL REFERENCES seller_plans(id) ON DELETE RESTRICT,
@@ -80,7 +80,7 @@ CREATE TABLE stores (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE plan_upgrade_requests (
+CREATE TABLE IF NOT EXISTS plan_upgrade_requests (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     requested_plan_id INT NOT NULL REFERENCES seller_plans(id) ON DELETE RESTRICT,
@@ -90,7 +90,7 @@ CREATE TABLE plan_upgrade_requests (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE seller_plan_changes (
+CREATE TABLE IF NOT EXISTS seller_plan_changes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     admin_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
@@ -100,7 +100,7 @@ CREATE TABLE seller_plan_changes (
     changed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE store_subscriptions_payments (
+CREATE TABLE IF NOT EXISTS store_subscriptions_payments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     plan_id INT NOT NULL REFERENCES seller_plans(id) ON DELETE RESTRICT,
@@ -111,7 +111,7 @@ CREATE TABLE store_subscriptions_payments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE store_status_logs (
+CREATE TABLE IF NOT EXISTS store_status_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     admin_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
@@ -124,14 +124,14 @@ CREATE TABLE store_status_logs (
 -- ============================================================================
 -- 4. CATEGORIAS E ATRIBUTOS ESPECÍFICOS
 -- ============================================================================
-CREATE TABLE categories (
+CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
     parent_id INT REFERENCES categories(id) ON DELETE SET NULL,
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL
 );
 
-CREATE TABLE category_attributes (
+CREATE TABLE IF NOT EXISTS category_attributes (
     id SERIAL PRIMARY KEY,
     category_id INT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
     name VARCHAR(50) NOT NULL,
@@ -141,7 +141,7 @@ CREATE TABLE category_attributes (
 -- ============================================================================
 -- 5. PRODUTOS E FRETE POR VENDEDOR
 -- ============================================================================
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     category_id INT NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
@@ -155,7 +155,7 @@ CREATE TABLE products (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE product_images (
+CREATE TABLE IF NOT EXISTS product_images (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     url TEXT NOT NULL,
@@ -163,7 +163,7 @@ CREATE TABLE product_images (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE product_attribute_values (
+CREATE TABLE IF NOT EXISTS product_attribute_values (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     attribute_id INT NOT NULL REFERENCES category_attributes(id) ON DELETE CASCADE,
@@ -173,7 +173,7 @@ CREATE TABLE product_attribute_values (
 -- ============================================================================
 -- 6. PUBLICIDADE GLOBAL (BANNERS, VÍDEOS E PANFLETOS)
 -- ============================================================================
-CREATE TABLE ad_pricing_plans (
+CREATE TABLE IF NOT EXISTS ad_pricing_plans (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     ad_type VARCHAR(20) NOT NULL CHECK (ad_type IN ('banner', 'video', 'flyer')),
@@ -183,7 +183,7 @@ CREATE TABLE ad_pricing_plans (
     is_active BOOLEAN DEFAULT TRUE
 );
 
-CREATE TABLE advertisements (
+CREATE TABLE IF NOT EXISTS advertisements (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     ad_plan_id INT NOT NULL REFERENCES ad_pricing_plans(id) ON DELETE RESTRICT,
@@ -200,7 +200,7 @@ CREATE TABLE advertisements (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE ad_payments (
+CREATE TABLE IF NOT EXISTS ad_payments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     ad_id UUID NOT NULL REFERENCES advertisements(id) ON DELETE CASCADE,
     amount DECIMAL(12,2) NOT NULL,
@@ -214,7 +214,7 @@ CREATE TABLE ad_payments (
 -- ============================================================================
 -- 7. CHAT TEMPORÁRIO DE 72 HORAS (CLIENTE <-> VENDEDOR / ADMIN)
 -- ============================================================================
-CREATE TABLE chat_rooms (
+CREATE TABLE IF NOT EXISTS chat_rooms (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     customer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
@@ -223,7 +223,7 @@ CREATE TABLE chat_rooms (
     CONSTRAINT unique_customer_store_product UNIQUE(customer_id, store_id, product_id)
 );
 
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     room_id UUID NOT NULL REFERENCES chat_rooms(id) ON DELETE CASCADE,
     sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -235,12 +235,12 @@ CREATE TABLE messages (
     expires_at TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '72 hours')
 );
 
-CREATE INDEX idx_messages_expires_at ON messages(expires_at);
+CREATE INDEX IF NOT EXISTS idx_messages_expires_at ON messages(expires_at);
 
 -- ============================================================================
 -- 8. PEDIDOS (COMPRAS FEITAS PELO CLIENTE PARA ENTREGA EM CASA)
 -- ============================================================================
-CREATE TABLE orders (
+CREATE TABLE IF NOT EXISTS orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_number VARCHAR(50) NOT NULL UNIQUE, -- Ex: PED-2026-0001
     customer_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
@@ -264,7 +264,7 @@ CREATE TABLE orders (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE order_items (
+CREATE TABLE IF NOT EXISTS order_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     product_id UUID REFERENCES products(id) ON DELETE SET NULL,
@@ -275,14 +275,14 @@ CREATE TABLE order_items (
 
 -- Associar o Pedido à Entrega no Mapa
 ALTER TABLE deliveries
-ADD COLUMN order_id UUID REFERENCES orders(id) ON DELETE SET NULL;
+ADD COLUMN IF NOT EXISTS order_id UUID REFERENCES orders(id) ON DELETE SET NULL;
 
-CREATE INDEX idx_orders_customer ON orders(customer_id);
-CREATE INDEX idx_orders_store ON orders(store_id);
-CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_store ON orders(store_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 
 -- Perfil Fiscal da Loja (Dados Empresariais ou Individuais)
-CREATE TABLE store_billing_profiles (
+CREATE TABLE IF NOT EXISTS store_billing_profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE UNIQUE,
     entity_type VARCHAR(20) NOT NULL CHECK (entity_type IN ('individual', 'company')),
@@ -301,7 +301,7 @@ CREATE TABLE store_billing_profiles (
 );
 
 -- Faturas Emitidas aos Clientes
-CREATE TABLE invoices (
+CREATE TABLE IF NOT EXISTS invoices (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     invoice_number VARCHAR(50) NOT NULL UNIQUE, -- Ex: FT 2026/0001
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE RESTRICT,
@@ -327,7 +327,7 @@ CREATE TABLE invoices (
 );
 
 -- Itens da Fatura
-CREATE TABLE invoice_items (
+CREATE TABLE IF NOT EXISTS invoice_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
     product_id UUID REFERENCES products(id) ON DELETE SET NULL,
@@ -337,11 +337,11 @@ CREATE TABLE invoice_items (
     total_price DECIMAL(12,2) NOT NULL
 );
 
-CREATE INDEX idx_invoices_store ON invoices(store_id);
-CREATE INDEX idx_invoices_customer ON invoices(customer_id);
-CREATE INDEX idx_invoices_token ON invoices(download_token);
+CREATE INDEX IF NOT EXISTS idx_invoices_store ON invoices(store_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_token ON invoices(download_token);
 
-CREATE TABLE promotional_campaigns (
+CREATE TABLE IF NOT EXISTS promotional_campaigns (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     title VARCHAR(100) NOT NULL, -- Ex: "Sextou da Kitanda", "Black Friday"
@@ -353,14 +353,14 @@ CREATE TABLE promotional_campaigns (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE campaign_products (
+CREATE TABLE IF NOT EXISTS campaign_products (
     campaign_id UUID NOT NULL REFERENCES promotional_campaigns(id) ON DELETE CASCADE,
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     promotional_price DECIMAL(12,2) NOT NULL,
     PRIMARY KEY (campaign_id, product_id)
 );
 
-CREATE TABLE live_streams (
+CREATE TABLE IF NOT EXISTS live_streams (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     title VARCHAR(150) NOT NULL,
@@ -374,7 +374,7 @@ CREATE TABLE live_streams (
 );
 
 -- Pergunta e Chat Interativo da Live
-CREATE TABLE live_comments (
+CREATE TABLE IF NOT EXISTS live_comments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     live_id UUID NOT NULL REFERENCES live_streams(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -383,11 +383,11 @@ CREATE TABLE live_comments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_live_streams_store ON live_streams(store_id);
-CREATE INDEX idx_live_comments_live ON live_comments(live_id);
+CREATE INDEX IF NOT EXISTS idx_live_streams_store ON live_streams(store_id);
+CREATE INDEX IF NOT EXISTS idx_live_comments_live ON live_comments(live_id);
 
 -- Tipos e Estados de Entrega
-CREATE TABLE deliveries (
+CREATE TABLE IF NOT EXISTS deliveries (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     courier_id UUID REFERENCES users(id) ON DELETE SET NULL, -- Estafeta/Afiliado responsável
@@ -413,7 +413,7 @@ CREATE TABLE deliveries (
 );
 
 -- Histórico de Posição em Tempo Real (Seta no Mapa)
-CREATE TABLE delivery_tracking_logs (
+CREATE TABLE IF NOT EXISTS delivery_tracking_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     delivery_id UUID NOT NULL REFERENCES deliveries(id) ON DELETE CASCADE,
     latitude DECIMAL(10, 8) NOT NULL,
@@ -423,11 +423,11 @@ CREATE TABLE delivery_tracking_logs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_deliveries_courier ON deliveries(courier_id);
-CREATE INDEX idx_deliveries_status ON deliveries(status);
-CREATE INDEX idx_delivery_tracking_delivery ON delivery_tracking_logs(delivery_id);
+CREATE INDEX IF NOT EXISTS idx_deliveries_courier ON deliveries(courier_id);
+CREATE INDEX IF NOT EXISTS idx_deliveries_status ON deliveries(status);
+CREATE INDEX IF NOT EXISTS idx_delivery_tracking_delivery ON delivery_tracking_logs(delivery_id);
 
-CREATE TABLE store_affiliates (
+CREATE TABLE IF NOT EXISTS store_affiliates (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -437,13 +437,13 @@ CREATE TABLE store_affiliates (
     CONSTRAINT unique_store_user UNIQUE(store_id, user_id)
 );
 
-CREATE INDEX idx_store_affiliates_store ON store_affiliates(store_id);
-CREATE INDEX idx_store_affiliates_user ON store_affiliates(user_id);
+CREATE INDEX IF NOT EXISTS idx_store_affiliates_store ON store_affiliates(store_id);
+CREATE INDEX IF NOT EXISTS idx_store_affiliates_user ON store_affiliates(user_id);
 
 -- Atualizar a regra dos planos para suporte a Afiliados/Membros da equipe e Lives
 ALTER TABLE seller_plans
-ADD COLUMN max_affiliates INT DEFAULT 0,
-ADD COLUMN allow_live_stream BOOLEAN DEFAULT FALSE;
+ADD COLUMN IF NOT EXISTS max_affiliates INT DEFAULT 0,
+ADD COLUMN IF NOT EXISTS allow_live_stream BOOLEAN DEFAULT FALSE;
 
 -- Atualizar permissões padrão dos planos
 UPDATE seller_plans SET max_affiliates = 0, allow_live_stream = FALSE WHERE tier = 'normal';
@@ -453,25 +453,25 @@ UPDATE seller_plans SET max_affiliates = 999999, allow_live_stream = TRUE WHERE 
 -- ============================================================================
 -- 8. PERFORMANCE INDEXES
 -- ============================================================================
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_user_type ON users(user_type);
-CREATE INDEX idx_user_otps_user_id ON user_otps(user_id);
-CREATE INDEX idx_user_otps_purpose ON user_otps(purpose);
-CREATE INDEX idx_stores_owner_id ON stores(owner_id);
-CREATE INDEX idx_stores_status ON stores(status);
-CREATE INDEX idx_stores_slug ON stores(slug);
-CREATE INDEX idx_products_store_id ON products(store_id);
-CREATE INDEX idx_products_category_id ON products(category_id);
-CREATE INDEX idx_products_is_active ON products(is_active);
-CREATE INDEX idx_product_images_product_id ON product_images(product_id);
-CREATE INDEX idx_advertisements_store_id ON advertisements(store_id);
-CREATE INDEX idx_advertisements_status ON advertisements(status);
-CREATE INDEX idx_advertisements_dates ON advertisements(start_date, end_date);
-CREATE INDEX idx_chat_rooms_customer_id ON chat_rooms(customer_id);
-CREATE INDEX idx_chat_rooms_store_id ON chat_rooms(store_id);
-CREATE INDEX idx_messages_room_id ON messages(room_id);
-CREATE INDEX idx_messages_sender_id ON messages(sender_id);
-CREATE INDEX idx_messages_is_read ON messages(is_read);
-CREATE INDEX idx_failed_login_attempts_email ON failed_login_attempts(email_attempted);
-CREATE INDEX idx_failed_login_attempts_ip ON failed_login_attempts(ip_address);
-CREATE INDEX idx_store_status_logs_store_id ON store_status_logs(store_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_user_type ON users(user_type);
+CREATE INDEX IF NOT EXISTS idx_user_otps_user_id ON user_otps(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_otps_purpose ON user_otps(purpose);
+CREATE INDEX IF NOT EXISTS idx_stores_owner_id ON stores(owner_id);
+CREATE INDEX IF NOT EXISTS idx_stores_status ON stores(status);
+CREATE INDEX IF NOT EXISTS idx_stores_slug ON stores(slug);
+CREATE INDEX IF NOT EXISTS idx_products_store_id ON products(store_id);
+CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_is_active ON products(is_active);
+CREATE INDEX IF NOT EXISTS idx_product_images_product_id ON product_images(product_id);
+CREATE INDEX IF NOT EXISTS idx_advertisements_store_id ON advertisements(store_id);
+CREATE INDEX IF NOT EXISTS idx_advertisements_status ON advertisements(status);
+CREATE INDEX IF NOT EXISTS idx_advertisements_dates ON advertisements(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_chat_rooms_customer_id ON chat_rooms(customer_id);
+CREATE INDEX IF NOT EXISTS idx_chat_rooms_store_id ON chat_rooms(store_id);
+CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_is_read ON messages(is_read);
+CREATE INDEX IF NOT EXISTS idx_failed_login_attempts_email ON failed_login_attempts(email_attempted);
+CREATE INDEX IF NOT EXISTS idx_failed_login_attempts_ip ON failed_login_attempts(ip_address);
+CREATE INDEX IF NOT EXISTS idx_store_status_logs_store_id ON store_status_logs(store_id);

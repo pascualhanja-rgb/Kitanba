@@ -56,15 +56,17 @@ export class ProfessionalSpecialtiesController {
   ) {}
 
   // -------------------------------------------------------------------------
-  // Specialty maintenance (admin)
+  // Specialty maintenance (list: authenticated; mutations: admin)
   // -------------------------------------------------------------------------
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Listar especialidades profissionais' })
+  @ApiOperation({
+    summary: 'Listar especialidades profissionais (qualquer utilizador autenticado)',
+  })
   @ApiResponse({ status: 200, description: 'Lista de especialidades' })
+  @ApiResponse({ status: 401, description: 'Não autenticado' })
   async listSpecialties(
     @Query() query: ListSpecialtiesQueryDto,
   ) {

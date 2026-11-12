@@ -9,8 +9,6 @@ import {
   Param,
   Query,
   UseGuards,
-  UseInterceptors,
-  ClassSerializerInterceptor,
   ParseIntPipe,
   ParseUUIDPipe,
 } from '@nestjs/common';
@@ -19,7 +17,6 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
-  ApiQuery,
 } from '@nestjs/swagger';
 
 import { ProfessionalSpecialtiesService } from './professional-specialties.service.js';
@@ -56,17 +53,14 @@ export class ProfessionalSpecialtiesController {
   ) {}
 
   // -------------------------------------------------------------------------
-  // Specialty maintenance (list: authenticated; mutations: admin)
+  // 1. Specialty maintenance (Público / Admin)
   // -------------------------------------------------------------------------
 
   @Get()
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Listar especialidades profissionais (qualquer utilizador autenticado)',
+    summary: 'Listar especialidades profissionais (Público)',
   })
   @ApiResponse({ status: 200, description: 'Lista de especialidades' })
-  @ApiResponse({ status: 401, description: 'Não autenticado' })
   async listSpecialties(
     @Query() query: ListSpecialtiesQueryDto,
   ) {
@@ -77,7 +71,7 @@ export class ProfessionalSpecialtiesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Criar especialidade profissional' })
+  @ApiOperation({ summary: 'Criar especialidade profissional (Admin)' })
   @ApiResponse({ status: 201, description: 'Especialidade criada' })
   @ApiResponse({ status: 400, description: 'Nome já utilizado' })
   async createSpecialty(
@@ -91,7 +85,7 @@ export class ProfessionalSpecialtiesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Atualizar especialidade profissional' })
+  @ApiOperation({ summary: 'Atualizar especialidade profissional (Admin)' })
   @ApiResponse({ status: 200, description: 'Especialidade atualizada' })
   @ApiResponse({ status: 404, description: 'Especialidade não encontrada' })
   async updateSpecialty(
@@ -105,7 +99,7 @@ export class ProfessionalSpecialtiesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Eliminar especialidade profissional' })
+  @ApiOperation({ summary: 'Eliminar especialidade profissional (Admin)' })
   @ApiResponse({ status: 200, description: 'Especialidade eliminada' })
   @ApiResponse({ status: 400, description: 'Especialidade em uso por lojas' })
   async deleteSpecialty(
@@ -115,33 +109,30 @@ export class ProfessionalSpecialtiesController {
   }
 
   // -------------------------------------------------------------------------
-  // Stores by specialty (admin + public)
+  // 2. Stores by specialty (Público & Admin)
   // -------------------------------------------------------------------------
 
   @Get(':specialtyId/stores')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
-  @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Listar lojas por especialidade (admin)',
+    summary: 'Listar lojas ativas por especialidade (Público - App Cliente)',
   })
   @ApiResponse({ status: 200, description: 'Lista de lojas' })
   @ApiResponse({ status: 404, description: 'Especialidade não encontrada' })
-  async getStoresBySpecialtyAdmin(
+  async getStoresBySpecialty(
     @Param('specialtyId', ParseIntPipe) specialtyId: number,
   ) {
-    return this.service.getStoresBySpecialtyId(specialtyId, true);
+    return this.service.getStoresBySpecialtyId(specialtyId, false);
   }
 
   // -------------------------------------------------------------------------
-  // Store specialties (admin)
+  // 3. Store specialties (Admin)
   // -------------------------------------------------------------------------
 
   @Get('stores/:storeId/specialties')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Especialidades de uma loja (admin)' })
+  @ApiOperation({ summary: 'Especialidades de uma loja (Admin)' })
   @ApiResponse({ status: 200, description: 'Lista de especialidades' })
   @ApiResponse({ status: 404, description: 'Loja não encontrada' })
   async getStoreSpecialtiesAdmin(
@@ -154,13 +145,12 @@ export class ProfessionalSpecialtiesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Atribuir especialidades a uma loja (admin)' })
+  @ApiOperation({ summary: 'Atribuir especialidades a uma loja (Admin)' })
   @ApiResponse({ status: 200, description: 'Especialidades atribuídas' })
   async assignSpecialtiesToStoreAdmin(
     @Param('storeId', ParseUUIDPipe) storeId: string,
     @Body() dto: AssignSpecialtiesDto,
   ) {
-    // Admin assign uses admin user id as owner check bypass via service
     return this.service.assignSpecialtiesToStore(storeId, 'admin-user', dto);
   }
 
@@ -169,7 +159,7 @@ export class ProfessionalSpecialtiesController {
   @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Remover especialidade de uma loja (admin)',
+    summary: 'Remover especialidade de uma loja (Admin)',
   })
   @ApiResponse({ status: 200, description: 'Especialidade removida' })
   @ApiResponse({ status: 404, description: 'Associação não encontrada' })
@@ -181,17 +171,14 @@ export class ProfessionalSpecialtiesController {
   }
 
   // -------------------------------------------------------------------------
-  // Store portfolio (admin)
+  // 4. Store portfolio (Público & Admin)
   // -------------------------------------------------------------------------
 
   @Get('stores/:storeId/portfolio')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Portfólio de uma loja (admin)' })
+  @ApiOperation({ summary: 'Ver portfólio de uma loja (Público - App Cliente)' })
   @ApiResponse({ status: 200, description: 'Itens do portfólio' })
   @ApiResponse({ status: 404, description: 'Loja não encontrada' })
-  async getStorePortfolioAdmin(
+  async getStorePortfolioPublic(
     @Param('storeId', ParseUUIDPipe) storeId: string,
   ) {
     return this.service.getStorePortfolio(storeId);
@@ -201,7 +188,7 @@ export class ProfessionalSpecialtiesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Adicionar item ao portfólio (admin)' })
+  @ApiOperation({ summary: 'Adicionar item ao portfólio (Admin)' })
   @ApiResponse({ status: 201, description: 'Item criado' })
   async addPortfolioItemAdmin(
     @Param('storeId', ParseUUIDPipe) storeId: string,
@@ -215,7 +202,7 @@ export class ProfessionalSpecialtiesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Atualizar item do portfólio (admin)' })
+  @ApiOperation({ summary: 'Atualizar item do portfólio (Admin)' })
   @ApiResponse({ status: 200, description: 'Item atualizado' })
   @ApiResponse({ status: 404, description: 'Item não encontrado' })
   async updatePortfolioItemAdmin(
@@ -230,7 +217,7 @@ export class ProfessionalSpecialtiesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Eliminar item do portfólio (admin)' })
+  @ApiOperation({ summary: 'Eliminar item do portfólio (Admin)' })
   @ApiResponse({ status: 200, description: 'Item eliminado' })
   @ApiResponse({ status: 404, description: 'Item não encontrado' })
   async deletePortfolioItemAdmin(
@@ -241,14 +228,14 @@ export class ProfessionalSpecialtiesController {
   }
 
   // -------------------------------------------------------------------------
-  // Quote requests (admin)
+  // 5. Quote requests (Admin)
   // -------------------------------------------------------------------------
 
   @Get('quote-requests')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Listar pedidos de orçamento (admin)' })
+  @ApiOperation({ summary: 'Listar pedidos de orçamento (Admin)' })
   @ApiResponse({ status: 200, description: 'Lista paginada de orçamentos' })
   async listQuoteRequestsAdmin(
     @Query() query: ListQuoteRequestsQueryDto,
@@ -260,7 +247,7 @@ export class ProfessionalSpecialtiesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Detalhes do pedido de orçamento (admin)' })
+  @ApiOperation({ summary: 'Detalhes do pedido de orçamento (Admin)' })
   @ApiResponse({ status: 200, description: 'Detalhes do orçamento' })
   @ApiResponse({ status: 404, description: 'Pedido não encontrado' })
   async getQuoteRequestAdmin(
@@ -274,7 +261,7 @@ export class ProfessionalSpecialtiesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Atualizar estado e notas do orçamento (admin)' })
+  @ApiOperation({ summary: 'Atualizar estado e notas do orçamento (Admin)' })
   @ApiResponse({ status: 200, description: 'Orçamento atualizado' })
   @ApiResponse({ status: 400, description: 'Transição inválida' })
   async updateQuoteRequestAdmin(
@@ -289,7 +276,7 @@ export class ProfessionalSpecialtiesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Aceitar e agendar orçamento (admin)' })
+  @ApiOperation({ summary: 'Aceitar e agendar orçamento (Admin)' })
   @ApiResponse({ status: 200, description: 'Orçamento aceite' })
   @ApiResponse({ status: 400, description: 'Estado inválido para aceite' })
   async acceptQuoteRequestAdmin(
@@ -304,7 +291,7 @@ export class ProfessionalSpecialtiesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Rejeitar orçamento (admin)' })
+  @ApiOperation({ summary: 'Rejeitar orçamento (Admin)' })
   @ApiResponse({ status: 200, description: 'Orçamento rejeitado' })
   @ApiResponse({ status: 400, description: 'Pedido já finalizado' })
   async rejectQuoteRequestAdmin(

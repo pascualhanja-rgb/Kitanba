@@ -39,7 +39,7 @@ import { User } from '../users/entities/user.entity.js';
 export class StoresController {
   constructor(private readonly storesService: StoresService) {}
 
-  // ==================== ROTAS PÚBLICAS ====================
+  // ==================== 1. ROTAS PÚBLICAS (ESTÁTICAS) ====================
 
   @Get('public/:slug')
   @ApiOperation({ summary: 'Obter loja por slug (público)' })
@@ -49,20 +49,7 @@ export class StoresController {
     return this.storesService.findBySlug(slug);
   }
 
-  // ==================== ROTAS DO VENDEDOR ====================
-
-  @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('seller')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Criar nova loja (Vendedor)' })
-  @ApiResponse({ status: 201, description: 'Loja criada' })
-  async create(
-    @Body() createStoreDto: CreateStoreDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.storesService.create(createStoreDto, user.id);
-  }
+  // ==================== 2. ROTAS ESPECÍFICAS / ESTÁTICAS (DEVEM VIR ANTES DOS PARÂMETROS :id) ====================
 
   @Get('my')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -78,6 +65,68 @@ export class StoresController {
   ) {
     return this.storesService.findByOwner(user.id, page || 1, limit || 20);
   }
+
+  @Get('admin/all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Listar todas as lojas (Admin)' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'status', required: false })
+  async findAllAdmin(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: string,
+  ) {
+    return this.storesService.findAll(page || 1, limit || 20, status);
+  }
+
+  @Get('admin/upgrade-requests')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Listar solicitações de upgrade (Admin)' })
+  @ApiQuery({ name: 'status', required: false })
+  async findUpgradeRequests(@Query('status') status?: string) {
+    return this.storesService.findAllUpgradeRequests(status || 'pending');
+  }
+
+  @Post('admin/upgrade-requests/:requestId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Responder solicitação de upgrade (Admin)' })
+  async respondToUpgrade(
+    @Param('requestId') requestId: string,
+    @Body() dto: RespondUpgradeDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.storesService.respondToUpgradeRequest(
+      requestId,
+      dto.status as 'approved' | 'rejected',
+      user.id,
+      dto.admin_notes,
+    );
+  }
+
+  // ==================== 3. ROTAS DE CRIAÇÃO ====================
+
+  @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('seller')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Criar nova loja (Vendedor)' })
+  @ApiResponse({ status: 201, description: 'Loja criada' })
+  async create(
+    @Body() createStoreDto: CreateStoreDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.storesService.create(createStoreDto, user.id);
+  }
+
+  // ==================== 4. ROTAS DINÂMICAS COM PARÂMETRO (:id) ====================
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
@@ -118,24 +167,6 @@ export class StoresController {
   async checkExists(@Param('id', ParseUUIDPipe) id: string) {
     await this.storesService.findOne(id);
     return {};
-  }
-
-  // ==================== ROTAS DO ADMIN ====================
-
-  @Get('admin/all')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Listar todas as lojas (Admin)' })
-  @ApiQuery({ name: 'page', required: false })
-  @ApiQuery({ name: 'limit', required: false })
-  @ApiQuery({ name: 'status', required: false })
-  async findAllAdmin(
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('status') status?: string,
-  ) {
-    return this.storesService.findAll(page || 1, limit || 20, status);
   }
 
   @Post(':id/approve')
@@ -179,8 +210,6 @@ export class StoresController {
     return this.storesService.suspend(id, user.id, dto.reason || '');
   }
 
-  // ==================== UPGRADE DE PLANO ====================
-
   @Post(':id/upgrade-request')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('seller')
@@ -197,35 +226,6 @@ export class StoresController {
       dto.requested_plan_id,
       user.id,
       dto.payment_proof_url,
-    );
-  }
-
-  @Get('admin/upgrade-requests')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Listar solicitações de upgrade (Admin)' })
-  @ApiQuery({ name: 'status', required: false })
-  async findUpgradeRequests(@Query('status') status?: string) {
-    return this.storesService.findAllUpgradeRequests(status || 'pending');
-  }
-
-  @Post('admin/upgrade-requests/:requestId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
-  @ApiBearerAuth()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Responder solicitação de upgrade (Admin)' })
-  async respondToUpgrade(
-    @Param('requestId') requestId: string,
-    @Body() dto: RespondUpgradeDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.storesService.respondToUpgradeRequest(
-      requestId,
-      dto.status as 'approved' | 'rejected',
-      user.id,
-      dto.admin_notes,
     );
   }
 }

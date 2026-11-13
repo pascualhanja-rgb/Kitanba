@@ -33,6 +33,7 @@ import {
   QuoteStateChangeDto,
   ListQuoteRequestsQueryDto,
 } from './dto/create-quote-request.dto.js';
+
 interface StoreWithOwner {
   id: string;
   name: string;
@@ -294,6 +295,7 @@ export class ProfessionalSpecialtiesService {
     const qb = this.providerSpecialtyRepository
       .createQueryBuilder('ps')
       .innerJoinAndSelect('ps.store', 'store')
+      .leftJoinAndSelect('ps.specialty', 'specialty')
       .where('ps.specialty_id = :specialtyId', { specialtyId });
 
     if (activeOnly) {
@@ -304,10 +306,12 @@ export class ProfessionalSpecialtiesService {
     const links = await qb.getMany();
 
     return links.map((link) => ({
-      store_id: link.store_id,
-      store_name: link.store?.name ?? null,
+      id: link.store?.id ?? null,
+      name: link.store?.name ?? null,
+      slug: link.store?.slug ?? null,               // 👈 Slug enviado corretamente para o Flutter
+      logo_url: link.store?.logo_url ?? null,       // 👈 Logótipo incluído
       city: link.store?.city ?? null,
-      is_active: link.is_active,
+      specialty_name: link.specialty?.name ?? null,
     }));
   }
 
